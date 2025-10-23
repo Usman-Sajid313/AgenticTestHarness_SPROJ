@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -10,6 +11,10 @@ import {
   createEmptyParameter,
 } from '@/lib/toolSchemas';
 import { ZodError } from 'zod';
+
+function toPrismaJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -60,8 +65,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const inputSchema = buildInputJsonSchema(payload.parameters);
-  const outputSchema = buildOutputJsonSchema(payload.output);
+  const inputSchema = toPrismaJson(buildInputJsonSchema(payload.parameters));
+  const outputSchema = toPrismaJson(buildOutputJsonSchema(payload.output));
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -186,4 +191,3 @@ export async function GET() {
 
   return NextResponse.json({ tools: normalized });
 }
-

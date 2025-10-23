@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -19,7 +21,13 @@ async function getWorkspaceIdForUser(userId: string) {
   return membership?.workspaceId ?? null;
 }
 
-export async function GET(_: Request, context: { params: { id: string } }) {
+function toPrismaJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+export async function GET(_: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -31,7 +39,7 @@ export async function GET(_: Request, context: { params: { id: string } }) {
   }
 
   const tool = await prisma.tool.findFirst({
-    where: { id: context.params.id, workspaceId },
+    where: { id, workspaceId },
     select: {
       id: true,
       name: true,
@@ -71,7 +79,9 @@ export async function GET(_: Request, context: { params: { id: string } }) {
   });
 }
 
-export async function PUT(req: Request, context: { params: { id: string } }) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -94,7 +104,7 @@ export async function PUT(req: Request, context: { params: { id: string } }) {
   }
 
   const tool = await prisma.tool.findFirst({
-    where: { id: context.params.id, workspaceId },
+    where: { id, workspaceId },
     select: { id: true, name: true },
   });
 
@@ -106,7 +116,7 @@ export async function PUT(req: Request, context: { params: { id: string } }) {
     where: {
       workspaceId,
       name: payload.name,
-      id: { not: context.params.id },
+      id: { not: id },
     },
     select: { id: true },
   });
@@ -118,13 +128,13 @@ export async function PUT(req: Request, context: { params: { id: string } }) {
     );
   }
 
-  const inputSchema = buildInputJsonSchema(payload.parameters);
-  const outputSchema = buildOutputJsonSchema(payload.output);
+  const inputSchema = toPrismaJson(buildInputJsonSchema(payload.parameters));
+  const outputSchema = toPrismaJson(buildOutputJsonSchema(payload.output));
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
       const updatedTool = await tx.tool.update({
-        where: { id: context.params.id },
+        where: { id },
         data: {
           name: payload.name,
           description: payload.description,
@@ -183,7 +193,9 @@ export async function PUT(req: Request, context: { params: { id: string } }) {
   }
 }
 
-export async function DELETE(_: Request, context: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -195,7 +207,7 @@ export async function DELETE(_: Request, context: { params: { id: string } }) {
   }
 
   const tool = await prisma.tool.findFirst({
-    where: { id: context.params.id, workspaceId },
+    where: { id, workspaceId },
     select: { id: true },
   });
 
@@ -205,13 +217,13 @@ export async function DELETE(_: Request, context: { params: { id: string } }) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.tool.delete({ where: { id: context.params.id } });
+      await tx.tool.delete({ where: { id } });
       await tx.auditLog.create({
         data: {
           userId: user.id,
           action: 'TOOL_DELETE',
           targetType: 'Tool',
-          targetId: context.params.id,
+          targetId: id,
         },
       });
     });
