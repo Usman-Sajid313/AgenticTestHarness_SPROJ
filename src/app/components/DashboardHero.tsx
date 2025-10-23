@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Space_Grotesk } from 'next/font/google';
 import DeleteAccountModal from './DeleteAccountModal';
 
@@ -18,6 +19,8 @@ type MeResponse = {
 export default function DashboardHero() {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string>('…');
+  const [loggingOut, setLoggingOut] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     let alive = true;
@@ -60,6 +63,7 @@ export default function DashboardHero() {
 
           <button
             type="button"
+            onClick={() => router.push('/tools/new')}
             className="
               rounded-lg px-4 py-2 text-white
               bg-white/10 ring-1 ring-white/20 hover:bg-white/15
@@ -68,6 +72,50 @@ export default function DashboardHero() {
             "
           >
             Create Tool
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/tools')}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+            "
+          >
+            View Tools
+          </button>
+
+          <button
+            type="button"
+            disabled={loggingOut}
+            onClick={async () => {
+              if (loggingOut) return;
+              setLoggingOut(true);
+              try {
+                const res = await fetch('/api/auth/logout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                });
+                if (!res.ok) {
+                  setLoggingOut(false);
+                  return;
+                }
+                router.push('/login');
+              } catch {
+                setLoggingOut(false);
+              }
+            }}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+              disabled:opacity-60
+            "
+          >
+            {loggingOut ? 'Signing out…' : 'Logout'}
           </button>
 
           <button
