@@ -1,26 +1,23 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@keyframes flow-vertical {
+  0% { background-position: 50% 0%; }
+  50% { background-position: 50% 100%; }
+  100% { background-position: 50% 0%; }
+}
+.bg-deep-space {
+  background: linear-gradient(to bottom, #000000 0%, #0b001a 35%, #120024 70%, #1a0033 100%);
+}
+.bg-deep-space-anim {
+  background: linear-gradient(to bottom, #090011, #120024, #1a0033, #120024, #090011);
+  background-size: 100% 300%;
+  animation: flow-vertical 18s ease-in-out infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.neon {
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06) inset,
+    0 8px 30px rgba(0,0,0,0.45),
+    0 0 30px rgba(255,255,255,0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}

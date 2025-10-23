@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DELETED
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum EndpointType {
+  MOCK
+  EXTERNAL
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String?    
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  memberships       Membership[]
+  sessions          Session[]
+  apiTokens         ApiToken[]
+  tools             Tool[]              @relation("UserTools")
+  auditLogs         AuditLog[]
+  EmailVerification EmailVerification[]
+  PasswordReset     PasswordReset[]
+
+  @@index([status])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  ip        String?   @db.Inet
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ApiToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  hashedToken String    @unique
+  scopes      String[]  @default([])
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  @@index([userId])
+}
+
+model EmailVerification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  projects    Project[]
+  tools       Tool[]
+
+  @@unique([name])
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(MEMBER)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  workspaceId String
+  ownerId     String?
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User?         @relation(name: "UserTools", fields: [ownerId], references: [id], onDelete: SetNull) // <-- optional
+  versions  ToolVersion[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@index([ownerId])
+}
+
+model ToolVersion {
+  id           String       @id @default(cuid())
+  toolId       String
+  version      String       @default("1.0.0")
+  endpointType EndpointType @default(MOCK)
+  baseUrl      String?
+  inputSchema  Json
+  outputSchema Json
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  tool          Tool           @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  mockEndpoints MockEndpoint[]
+
+  @@unique([toolId, version])
+  @@index([toolId, isActive])
+}
+
+model MockEndpoint {
+  id              String     @id @default(cuid())
+  toolVersionId   String
+  method          HttpMethod @default(GET)
+  path            String
+  statusCode      Int        @default(200)
+  latencyMs       Int        @default(100)
+  errorRatePct    Float      @default(0)
+  exampleRequest  Json?
+  exampleResponse Json?
+
+  toolVersion ToolVersion @relation(fields: [toolVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([toolVersionId, method, path])
+  @@index([toolVersionId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  actorEmail String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ip         String?  @db.Inet
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action])
+}
