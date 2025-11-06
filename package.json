@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
+    "@langchain/openai": "^0.3.6",
     "bcryptjs": "^3.0.2",
     "jose": "^6.1.0",
+    "langchain": "^0.3.13",
     "next": "15.5.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",

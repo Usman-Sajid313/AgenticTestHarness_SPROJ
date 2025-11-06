@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Space_Grotesk } from 'next/font/google';
 import DeleteAccountModal from './DeleteAccountModal';
+import { USER_PROFILE_UPDATED_EVENT } from '@/lib/events';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -41,6 +42,19 @@ export default function DashboardHero() {
     };
   }, []);
 
+  useEffect(() => {
+    function onProfileUpdated(event: Event) {
+      const detail = (event as CustomEvent<{ name?: string }>).detail;
+      const nextName = (detail?.name && detail.name.trim()) || null;
+      if (nextName) setDisplayName(nextName);
+    }
+
+    window.addEventListener(USER_PROFILE_UPDATED_EVENT, onProfileUpdated as EventListener);
+    return () => {
+      window.removeEventListener(USER_PROFILE_UPDATED_EVENT, onProfileUpdated as EventListener);
+    };
+  }, []);
+
   return (
     <section className={`${spaceGrotesk.className} relative w-full`}>
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -51,6 +65,7 @@ export default function DashboardHero() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={() => router.push('/test-harness')}
             className="
               rounded-lg px-4 py-2 text-white
               bg-white/10 ring-1 ring-white/20 hover:bg-white/15
@@ -58,7 +73,7 @@ export default function DashboardHero() {
               transition active:scale-[0.99]
             "
           >
-            Run test
+            Test Harness
           </button>
 
           <button
@@ -85,6 +100,19 @@ export default function DashboardHero() {
             "
           >
             View Tools
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/profile')}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+            "
+          >
+            Profile
           </button>
 
           <button
