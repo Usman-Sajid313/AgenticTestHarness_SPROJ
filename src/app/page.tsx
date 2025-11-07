@@ -1,4 +1,4 @@
-import DashboardHero from "@/app/components/DashboardHero";
+import DashboardHero from '@/app/components/DashboardHero';
 
 export default function HomePage() {
   return (
@@ -10,12 +10,6 @@ export default function HomePage() {
       <div className="relative mx-auto max-w-6xl px-6 py-12">
         <DashboardHero />
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-            <h3 className="mb-2 text-lg font-semibold text-white">Profile</h3>
-            <p className="text-sm text-white/70">
-              Manage details, tokens, workspaces (coming soon).
-            </p>
-          </div>
           <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
             <h3 className="mb-2 text-lg font-semibold text-white">
               Recent Runs

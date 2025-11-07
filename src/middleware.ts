@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose';
 
 const AUTH_COOKIE = '__auth';
 const PUBLIC_PAGE_PATHS = new Set<string>(['/login', '/signup']);
-const PUBLIC_API_PREFIXES = ['/api/auth']; 
+const PUBLIC_API_PREFIXES = ['/api/auth', '/api/mock']; 
 
 function isStaticAsset(pathname: string) {
   return (

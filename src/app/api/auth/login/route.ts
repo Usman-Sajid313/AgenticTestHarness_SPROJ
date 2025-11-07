@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z, ZodError } from 'zod';
 import bcrypt from 'bcryptjs';
 import { signAuthJWT } from '@/lib/jwt';
+import { ensureDefaultSuiteForUser } from '@/lib/testSuiteStore';
 
 const LoginSchema = z.object({
   identifier: z.string().trim().min(2, 'Enter your name'),
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
     }
 
     const token = await signAuthJWT({ sub: user.id, email: user.email });
+    ensureDefaultSuiteForUser(user.id);
 
     const res = NextResponse.json({ ok: true });
     res.cookies.set({
