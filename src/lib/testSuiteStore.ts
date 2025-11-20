@@ -41,14 +41,16 @@ type UserSuiteState = {
 const MAX_RUN_HISTORY = 20;
 const suiteStore = new Map<string, UserSuiteState>();
 
-function createUserSuiteState(userId: string): UserSuiteState {
-  const suite = buildDefaultTestSuite(userId);
+
+function createUserSuiteState(): UserSuiteState {
+  const suite = buildDefaultTestSuite(); 
   return { suite, runs: [] };
 }
 
 export function ensureDefaultSuiteForUser(userId: string): TestSuite {
   if (!suiteStore.has(userId)) {
-    suiteStore.set(userId, createUserSuiteState(userId));
+    
+    suiteStore.set(userId, createUserSuiteState());
   }
   return suiteStore.get(userId)!.suite;
 }
@@ -68,7 +70,7 @@ export function getRecentRuns(userId: string, limit = 10): TestRunRecord[] {
 type RecordSuiteRunInput = Omit<TestRunRecord, 'id'> & { id?: string };
 
 export function recordSuiteRun(userId: string, input: RecordSuiteRunInput): TestRunRecord {
-  const state = suiteStore.get(userId) ?? createUserSuiteState(userId);
+  const state = suiteStore.get(userId) ?? createUserSuiteState();
   suiteStore.set(userId, state);
 
   const record: TestRunRecord = {
@@ -87,6 +89,3 @@ export function recordSuiteRun(userId: string, input: RecordSuiteRunInput): Test
 export function clearSuiteStore() {
   suiteStore.clear();
 }
-
-
-
