@@ -1,3 +1,23 @@
+model TestSuite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  corePrompt  String   @db.Text
+  
+  toolIds     Json     @default("[]") 
+  
+  config      Json?
+  
+  variables   Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -110,10 +130,11 @@ model Workspace {
   memberships Membership[]
   projects    Project[]
   tools       Tool[]
+  
+  testSuites  TestSuite[] 
 
   @@unique([name])
 }
-
 model Membership {
   id          String   @id @default(cuid())
   workspaceId String
