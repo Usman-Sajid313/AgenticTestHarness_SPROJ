@@ -188,7 +188,7 @@ export function getMockToolById(id: string): MockToolDefinition | undefined {
   return MOCK_TOOLS.find((tool) => tool.id === id);
 }
 
-export function buildDefaultTestSuite(userId: string): TestSuite {
+export function buildDefaultTestSuite(): TestSuite {
   const toolIds = MOCK_TOOLS.map((tool) => tool.id);
   const sharedContext = 'You are evaluating tools for planning a tech-forward long weekend in Tokyo for two travelers.';
 

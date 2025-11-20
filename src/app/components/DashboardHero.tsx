@@ -28,13 +28,14 @@ export default function DashboardHero() {
     (async () => {
       try {
         const res = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
-        if (!res.ok) return; 
+        if (!res.ok) return;
         const data = (await res.json()) as MeResponse;
         if (alive) {
           const name = (data.name && data.name.trim()) || data.email;
           setDisplayName(name);
         }
       } catch {
+        
       }
     })();
     return () => {
@@ -75,6 +76,34 @@ export default function DashboardHero() {
           >
             Test Harness
           </button>
+
+          {/* --- NEW: Split Test Suite Buttons --- */}
+          <button
+            type="button"
+            onClick={() => router.push('/suites/new')}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+            "
+          >
+            Create Suite
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/suites')}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+            "
+          >
+            View Suites
+          </button>
+          {/* ------------------------------------- */}
 
           <button
             type="button"

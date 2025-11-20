@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ChatOpenAI } from '@langchain/openai';
-import { SystemMessage, HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage } from '@langchain/core/messages';
 import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getSuiteForUser, recordSuiteRun, type TestRunToolCall } from '@/lib/testSuiteStore';
@@ -93,7 +92,7 @@ function mapToOpenAITool(def: MockToolDefinition): OpenAITool {
   };
 }
 
-async function executeMockTool(def: MockToolDefinition, origin: string, input: Record<string, any>) {
+async function executeMockTool(def: MockToolDefinition, origin: string, input: Record<string, unknown>) {
   const startedAt = Date.now();
   const url = new URL(def.path, origin);
 
@@ -222,7 +221,18 @@ export async function POST(req: Request) {
   const toolDefs = getMockToolCatalog();
   const toolMap = new Map(toolDefs.map((def) => [def.id, def]));
   const openaiTools = toolDefs.map(mapToOpenAITool);
-  const modelWithTools = model.bind({ tools: openaiTools });
+  
+  // ----------------------------------------------------------------------
+  // FIX: We explicitly disable the eslint rule for 'any' just for this block
+  // so we can satisfy the Compiler (which demands 'bind' exist) and the Linter.
+  // ----------------------------------------------------------------------
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flexibleModel = model as any;
+  
+  const modelWithTools = flexibleModel.bindTools 
+    ? flexibleModel.bindTools(openaiTools) 
+    : flexibleModel.bind({ tools: openaiTools });
 
   let workspaceTools: { id: string; name: string; description: string | null }[] = [];
   try {
@@ -249,7 +259,11 @@ export async function POST(req: Request) {
     const transcript: { role: 'system' | 'user' | 'assistant' | 'tool'; content: string }[] = [];
     const toolLogs: TestRunToolCall[] = [];
 
-    const messages = [new SystemMessage(suite.systemPrompt), new HumanMessage(suite.userPrompt)];
+    const messages: BaseMessage[] = [
+      new SystemMessage(suite.systemPrompt), 
+      new HumanMessage(suite.userPrompt)
+    ];
+
     transcript.push({ role: 'system', content: suite.systemPrompt });
     transcript.push({ role: 'user', content: suite.userPrompt });
 
@@ -433,4 +447,3 @@ export async function POST(req: Request) {
     },
   });
 }
-
