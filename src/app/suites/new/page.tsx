@@ -1,29 +1,33 @@
-'use client';
+'use client'; // Enable client-side rendering
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Space_Grotesk } from 'next/font/google';
+import { useState, useEffect } from 'react'; // React hooks for state and lifecycle
+import { useRouter } from 'next/navigation'; // Next.js router for navigation
+import { Space_Grotesk } from 'next/font/google'; // Custom Google Font loader
 
+// Font configuration
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
 });
 
+// Type for tool objects coming from /api/tools
 type ToolSummary = { id: string; name: string; description: string };
 
+// Main component for creating a new suite
 export default function NewSuitePage() {
   const router = useRouter();
-  const [tools, setTools] = useState<ToolSummary[]>([]);
+  const [tools, setTools] = useState<ToolSummary[]>([]); // All available tools
   
   
-  const [name, setName] = useState('');
-  const [corePrompt, setCorePrompt] = useState('');
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState(''); // Suite name input
+  const [corePrompt, setCorePrompt] = useState(''); // Core prompt input
+  const [selectedTools, setSelectedTools] = useState<string[]>([]); // Tools the user selects
+  const [loading, setLoading] = useState(false); // Loading state during submit
+  const [error, setError] = useState<string | null>(null); // Error message display
 
   
   useEffect(() => {
+    // Load tools on page mount
     fetch('/api/tools')
       .then((res) => res.json())
       .then((data) => setTools(data.tools || []))
@@ -35,6 +39,7 @@ export default function NewSuitePage() {
     setLoading(true);
     setError(null);
 
+    // Basic validation
     if (!name || !corePrompt || selectedTools.length === 0) {
       setError("Please fill in all required fields and select at least one tool.");
       setLoading(false);
@@ -42,6 +47,7 @@ export default function NewSuitePage() {
     }
 
     try {
+      // Create suite request
       const res = await fetch('/api/suites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +55,7 @@ export default function NewSuitePage() {
           name,
           corePrompt,
           toolIds: selectedTools,
-          config: { temperature: 0.7 },
+          config: { temperature: 0.7 }, // Example config
         }),
       });
 
@@ -59,7 +65,7 @@ export default function NewSuitePage() {
       }
 
       
-      router.push('/suites'); 
+      router.push('/suites'); // Navigate after success
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -68,6 +74,7 @@ export default function NewSuitePage() {
   };
 
   const toggleTool = (id: string) => {
+    // Toggle tool selection
     setSelectedTools(prev => 
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
@@ -75,7 +82,7 @@ export default function NewSuitePage() {
 
   return (
     <main className={`${spaceGrotesk.className} relative min-h-screen w-full bg-black`}>
-      {/* --- Background Effects --- */}
+      {/* Background Effects */}
       <div className="absolute inset-0 bg-deep-space" />
       <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
       <div className="pointer-events-none absolute -top-32 left-1/3 h-96 w-96 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
@@ -83,7 +90,7 @@ export default function NewSuitePage() {
 
       <div className="relative mx-auto max-w-4xl px-6 py-12">
         
-        {/* --- Header --- */}
+        {/* Header Section */}
         <header className="mb-10 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-white">Create New Test Suite</h1>
@@ -109,7 +116,7 @@ export default function NewSuitePage() {
         <section className="rounded-2xl bg-white/5 p-8 ring-1 ring-white/10 backdrop-blur-xl shadow-[0_40px_120px_rgba(0,0,0,0.45)]">
           <form onSubmit={handleSubmit} className="space-y-8">
             
-            {/* Task Name */}
+            {/* Input: Suite Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wide text-white/60">Task Name</label>
               <input 
@@ -121,7 +128,7 @@ export default function NewSuitePage() {
               />
             </div>
 
-            {/* Core Prompt */}
+            {/* Input: Core Prompt */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wide text-white/60">Core Prompt</label>
               <textarea 
@@ -133,7 +140,7 @@ export default function NewSuitePage() {
               />
             </div>
 
-            {/* Tool Selection */}
+            {/* Tool Picker */}
             <div className="space-y-3">
               <label className="block text-xs font-semibold uppercase tracking-wide text-white/60">Allowed Tools</label>
               <div className="grid gap-3 md:grid-cols-2">
@@ -163,6 +170,7 @@ export default function NewSuitePage() {
               )}
             </div>
 
+            {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
               <button 
                 type="button" 
