@@ -66,6 +66,19 @@ export default function DashboardHero() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={() => router.push('/limit-model-budget')}
+            className="
+              rounded-lg px-4 py-2 text-white
+              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
+              transition active:scale-[0.99]
+            "
+          >
+            Limit Model Budget
+          </button>
+
+          <button
+            type="button"
             onClick={() => router.push('/test-harness')}
             className="
               rounded-lg px-4 py-2 text-white
