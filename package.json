@@ -13,8 +13,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@langchain/openai": "^0.3.6",
     "@prisma/client": "^6.18.0",
+    "@supabase/supabase-js": "^2.87.0",
     "bcryptjs": "^3.0.2",
     "gpt-tokenizer": "^3.4.0",
     "jose": "^6.1.0",

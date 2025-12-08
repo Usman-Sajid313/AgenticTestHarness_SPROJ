@@ -31,11 +31,24 @@ enum HttpMethod {
   DELETE
 }
 
+enum RunStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum EvaluationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
   passwordHash String
-  name         String?    
+  name         String?
   status       UserStatus @default(ACTIVE)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -48,6 +61,10 @@ model User {
   auditLogs         AuditLog[]
   EmailVerification EmailVerification[]
   PasswordReset     PasswordReset[]
+
+  ownedProjects    Project[]    @relation("UserProjectsOwned")
+  triggeredRuns    AgentRun[]   @relation("UserRunsTriggered")
+  uploadedLogfiles RunLogfile[] @relation("UserRunLogfiles")
 
   @@index([status])
 }
@@ -134,13 +151,23 @@ model Project {
   id          String   @id @default(cuid())
   workspaceId String
   name        String
+  description String?
+  createdById String?
+  isArchived  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
+  createdBy   User?          @relation("UserProjectsOwned", fields: [createdById], references: [id], onDelete: SetNull)
+  runs        AgentRun[]
+  evaluations RunEvaluation[]
+  logfiles    RunLogfile[]
+
   @@unique([workspaceId, name])
   @@index([workspaceId])
+  @@index([createdById])
+  @@index([isArchived])
 }
 
 model Tool {
@@ -153,7 +180,7 @@ model Tool {
   updatedAt   DateTime @updatedAt
 
   workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     User?         @relation(name: "UserTools", fields: [ownerId], references: [id], onDelete: SetNull) // <-- optional
+  owner     User?         @relation(name: "UserTools", fields: [ownerId], references: [id], onDelete: SetNull)
   versions  ToolVersion[]
 
   @@unique([workspaceId, name])
@@ -219,17 +246,90 @@ model TestSuite {
   workspaceId String
   name        String
   corePrompt  String   @db.Text
-  
-  toolIds     Json     @default("[]") 
-  
+
+  toolIds     Json     @default("[]")
   config      Json?
-  
   variables   Json?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs        AgentRun[]
+  evaluations RunEvaluation[]
 
   @@index([workspaceId])
+}
+
+model AgentRun {
+  id            String      @id @default(cuid())
+  projectId     String
+  testSuiteId   String?
+  triggeredById String?
+  status        RunStatus   @default(PENDING)
+  taskName      String?
+  taskDefinition Json?
+  inputPayload  Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testSuite   TestSuite? @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
+  triggeredBy User?      @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  logfiles    RunLogfile[]
+  evaluations RunEvaluation[]
+
+  @@index([projectId])
+  @@index([testSuiteId])
+  @@index([triggeredById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RunLogfile {
+  id           String   @id @default(cuid())
+  runId        String
+  projectId    String
+  uploadedById String?
+  storageKey   String
+  url          String
+  sizeBytes    Int
+  checksum     String?
+  contentType  String?
+  createdAt    DateTime @default(now())
+  metadata     Json?
+
+  run        AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation("UserRunLogfiles", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([projectId])
+  @@index([uploadedById])
+}
+
+model RunEvaluation {
+  id           String           @id @default(cuid())
+  runId        String
+  projectId    String
+  testSuiteId  String?
+  status       EvaluationStatus @default(PENDING)
+  totalScore   Float?
+  metricBreakdown Json?
+  summary      String?          @db.Text
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  run       AgentRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testSuite TestSuite? @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([projectId])
+  @@index([testSuiteId])
+  @@index([status])
+  @@index([createdAt])
 }
