@@ -1,0 +1,6 @@
+{"id": "event_1", "type": "user_message", "timestamp": "2024-01-01T10:00:00Z", "content": "Find me a hotel in San Francisco for January 15-17"}
+{"id": "event_2", "type": "tool_call_start", "timestamp": "2024-01-01T10:00:01Z", "tool_call_id": "call_1", "tool_name": "search_hotels", "args": {"location": "San Francisco", "check_in": "2024-01-15", "check_out": "2024-01-17"}}
+{"id": "event_3", "type": "tool_result", "timestamp": "2024-01-01T10:00:02Z", "tool_call_id": "call_1", "result": {"hotels": [{"name": "Grand Hotel", "price": 200}, {"name": "Budget Inn", "price": 80}]}}
+{"id": "event_4", "type": "assistant_message", "timestamp": "2024-01-01T10:00:03Z", "content": "I found 2 hotels: Grand Hotel ($200/night) and Budget Inn ($80/night)"}
+{"id": "event_5", "type": "task_complete", "timestamp": "2024-01-01T10:00:04Z", "status": "success"}
+

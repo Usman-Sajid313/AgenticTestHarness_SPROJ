@@ -19,11 +19,14 @@
     "@supabase/supabase-js": "^2.87.0",
     "bcryptjs": "^3.0.2",
     "gpt-tokenizer": "^3.4.0",
+    "html2canvas": "^1.4.1",
     "jose": "^6.1.0",
+    "jspdf": "^4.0.0",
     "langchain": "^0.3.13",
     "next": "15.5.7",
     "react": "19.1.2",
     "react-dom": "19.1.2",
+    "recharts": "^3.6.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

@@ -18,6 +18,7 @@ export default function StartRunModal({
 }: StartRunModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -25,27 +26,35 @@ export default function StartRunModal({
     if (!file) return;
 
     setLoading(true);
+    setUploadProgress("Uploading file...");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("projectId", projectId);
+    try {
+      // Upload file via server-side API (uses service role, bypasses RLS)
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("projectId", projectId);
 
-    const res = await fetch("/api/runs/upload-logfile", {
-      method: "POST",
-      body: formData,
-    });
+      const uploadRes = await fetch("/api/runs/upload-logfile", {
+        method: "POST",
+        body: formData,
+      });
 
-    setLoading(false);
+      if (!uploadRes.ok) {
+        const error = await uploadRes.json();
+        throw new Error(error.error || "Failed to upload");
+      }
 
-    if (res.ok) {
-      const data: { runId: string } = await res.json();
-      const runId = data.runId;
+      const { runId } = await uploadRes.json();
 
       onClose();
-      onSuccess?.(); 
+      onSuccess?.();
       router.push(`/runs/${runId}`);
-    } else {
-      alert("Failed to upload logfile.");
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert(`Failed to upload: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setLoading(false);
+      setUploadProgress("");
     }
   }
 
@@ -61,7 +70,7 @@ export default function StartRunModal({
         <form onSubmit={handleSubmit} className="space-y-6">
           <input
             type="file"
-            accept=".txt,.log,.json"
+            accept=".txt,.log,.json,.jsonl,.ndjson"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10"
             required
@@ -81,7 +90,7 @@ export default function StartRunModal({
               disabled={loading}
               className="px-5 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-900/40"
             >
-              {loading ? "Uploading…" : "Start Run"}
+              {loading ? (uploadProgress || "Uploading…") : "Start Run"}
             </button>
           </div>
         </form>

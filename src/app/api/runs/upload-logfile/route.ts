@@ -23,28 +23,45 @@ export async function POST(req: Request) {
     data: {
       projectId,
       triggeredById: user.id,
-      status: "PENDING",
+      status: "CREATED",
     },
   });
 
   const ext = file.name.split(".").pop() || "log";
   const storageKey = `${projectId}/${run.id}.${ext}`;
 
-  const uploadRes = await supabaseServerClient.storage
+  await prisma.agentRun.update({
+    where: { id: run.id },
+    data: { status: "UPLOADING" },
+  });
+
+  const { error: uploadError } = await supabaseServerClient.storage
     .from("agent-logs")
     .upload(storageKey, file, {
       contentType: file.type || "text/plain",
       upsert: true,
     });
 
-  if (uploadRes.error) {
-    console.error(uploadRes.error);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+  if (uploadError) {
+    await prisma.agentRun.update({
+      where: { id: run.id },
+      data: { status: "FAILED" },
+    });
+    return NextResponse.json(
+      { error: `Upload failed: ${uploadError.message}` },
+      { status: 500 }
+    );
   }
 
   const { data: pubData } = supabaseServerClient.storage
     .from("agent-logs")
     .getPublicUrl(storageKey);
+
+  const fileBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", fileBuffer);
+  const sha256 = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
   await prisma.runLogfile.create({
     data: {
@@ -54,9 +71,19 @@ export async function POST(req: Request) {
       storageKey,
       url: pubData.publicUrl,
       sizeBytes: file.size,
-      contentType: file.type,
+      checksum: sha256,
+      contentType: file.type || "text/plain",
     },
   });
 
-  return NextResponse.json({ runId: run.id });
+
+  await prisma.agentRun.update({
+    where: { id: run.id },
+    data: { status: "UPLOADED" },
+  });
+
+  return NextResponse.json({
+    runId: run.id,
+    status: "UPLOADED",
+  });
 }
