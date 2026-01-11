@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 
 export type DimensionResult = {
   score: number;
+  summary?: string;
   strengths?: string;
   weaknesses?: string;
 };
@@ -19,6 +20,7 @@ export type Evaluation = {
   totalScore: number | null;
   summary: string | null;
   metricBreakdown: MetricBreakdown | null;
+  confidence?: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -45,15 +47,10 @@ export default function RunView({
     initialEvaluation
   );
 
-  // prevent double-kicking evaluation
   const evalTriggeredRef = useRef(false);
 
   const runId = run.id;
 
-  /**
-   * 1) Kick off evaluation exactly once per mount.
-   *    The backend will no-op if the run is already processing / evaluated.
-   */
   useEffect(() => {
     if (evalTriggeredRef.current) return;
 
@@ -61,15 +58,41 @@ export default function RunView({
 
     (async () => {
       try {
-        await fetch(`/api/runs/${runId}/evaluate`, { method: "POST" });
+        const statusRes = await fetch(`/api/runs/${runId}`);
+        if (!statusRes.ok) return;
+
+        const { run: currentRun } = await statusRes.json();
+
+        if (
+          currentRun.status === "COMPLETED" ||
+          currentRun.status === "COMPLETED_LOW_CONFIDENCE" ||
+          currentRun.status === "FAILED"
+        ) {
+          return;
+        }
+
+        if (currentRun.status === "UPLOADED") {
+          await fetch(`/api/runs/${runId}/parse`, { method: "POST" });
+          return;
+        }
+        if (currentRun.status === "READY_FOR_JUDGING") {
+          await fetch(`/api/runs/${runId}/judge`, { method: "POST" });
+          return;
+        }
+
       } catch (err) {
-        console.error("Failed to trigger evaluation", err);
+        console.error("Failed to trigger processing", err);
       }
     })();
   }, [runId]);
 
   useEffect(() => {
-    if (evaluation?.status === "COMPLETED") return;
+    const isDone =
+      run.status === "COMPLETED" ||
+      run.status === "COMPLETED_LOW_CONFIDENCE" ||
+      run.status === "FAILED";
+
+    if (isDone && evaluation?.status === "COMPLETED") return;
 
     const interval = setInterval(async () => {
       try {
@@ -82,13 +105,17 @@ export default function RunView({
         if (data.evaluation) {
           setEvaluation(data.evaluation as Evaluation);
         }
+
+        if (data.run.status === "READY_FOR_JUDGING") {
+          fetch(`/api/runs/${runId}/judge`, { method: "POST" }).catch(console.error);
+        }
       } catch (err) {
         console.error("Failed to poll run/evaluation", err);
       }
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [runId, evaluation?.status]);
+  }, [runId, run.status, evaluation?.status]);
 
   const isDone = evaluation?.status === "COMPLETED";
 
@@ -101,27 +128,46 @@ export default function RunView({
         <span className="font-mono text-xs">{run.id}</span>
       </p>
 
-      {!isDone ? <AnalyzingState /> : <ResultState evaluation={evaluation!} />}
+      {!isDone ? <AnalyzingState status={run.status} /> : <ResultState evaluation={evaluation!} run={run} />}
     </div>
   );
 }
 
-function AnalyzingState() {
+function AnalyzingState({ status }: { status: string }) {
+  const statusMessages: Record<string, { title: string; description: string }> = {
+    CREATED: { title: "Creating run...", description: "Initializing your run." },
+    UPLOADING: { title: "Uploading logfile...", description: "Uploading your log file to storage." },
+    UPLOADED: { title: "Upload complete", description: "Preparing to parse the logfile." },
+    PARSING: {
+      title: "Parsing logfile...",
+      description: "We're parsing the agent's actions, tool calls, and reasoning to build the evaluation packet.",
+    },
+    READY_FOR_JUDGING: {
+      title: "Ready for evaluation",
+      description: "Starting AI evaluation with Gemini and Groq.",
+    },
+    JUDGING: {
+      title: "Evaluating with AI judges...",
+      description: "Gemini and Groq are analyzing the run and computing scores.",
+    },
+  };
+
+  const message = statusMessages[status] || {
+    title: "Processing...",
+    description: "Your run is being processed.",
+  };
+
   return (
     <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl">
       <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-      <h2 className="text-xl font-semibold text-white mb-2">
-        Analyzing logfile…
-      </h2>
-      <p className="text-white/70">
-        We’re parsing the agent’s actions, tool calls, and reasoning to compute
-        a detailed score.
-      </p>
+      <h2 className="text-xl font-semibold text-white mb-2">{message.title}</h2>
+      <p className="text-white/70">{message.description}</p>
+      <p className="text-white/40 text-sm mt-2">Status: {status}</p>
     </div>
   );
 }
 
-function ResultState({ evaluation }: { evaluation: Evaluation }) {
+function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
   const breakdown = evaluation.metricBreakdown;
 
   if (!breakdown) {
@@ -138,6 +184,15 @@ function ResultState({ evaluation }: { evaluation: Evaluation }) {
 
   return (
     <div className="space-y-8 mt-6">
+      {evaluation.confidence !== null && evaluation.confidence !== undefined && evaluation.confidence < 0.7 && (
+        <div className="rounded-2xl bg-yellow-500/10 p-4 ring-1 ring-yellow-500/20">
+          <p className="text-yellow-300 text-sm">
+            ⚠️ Low confidence evaluation ({Math.round((evaluation.confidence || 0) * 100)}%).
+            Judges disagreed significantly. Results should be interpreted with caution.
+          </p>
+        </div>
+      )}
+
       <div className="rounded-2xl bg-white/5 p-8 ring-1 ring-white/10 backdrop-blur-xl">
         <h2 className="text-xl font-semibold text-white mb-4">Overall Score</h2>
 
@@ -174,6 +229,12 @@ function ResultState({ evaluation }: { evaluation: Evaluation }) {
                   {dim.score} / 100
                 </span>
               </div>
+
+              {dim.summary && (
+                <p className="text-sm text-white/80 mb-4 leading-relaxed">
+                  {dim.summary}
+                </p>
+              )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>

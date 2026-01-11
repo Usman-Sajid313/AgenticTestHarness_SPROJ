@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import ProjectRunsTable from "@/app/components/projects/ProjectRunsTable";
 import StartRunButton from "@/app/components/projects/StartRunButton";
+import ScoreTrendChart from "@/app/components/projects/ScoreTrendChart";
+
+const PAGE_SIZE = 10;
 
 export default async function ProjectPage(context: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { id: projectId } = await context.params;
+  const searchParams = await context.searchParams;
+  const page = parseInt(searchParams.page || "1", 10);
+  const skip = (page - 1) * PAGE_SIZE;
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -19,8 +26,31 @@ export default async function ProjectPage(context: {
     );
   }
 
+  const totalCount = await prisma.agentRun.count({
+    where: { projectId },
+  });
+
   const runs = await prisma.agentRun.findMany({
     where: { projectId },
+    include: {
+      evaluations: {
+        where: { status: "COMPLETED" },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    skip,
+    take: PAGE_SIZE,
+  });
+
+  const allRunsForChart = await prisma.agentRun.findMany({
+    where: { projectId },
+    include: {
+      evaluations: {
+        where: { status: "COMPLETED" },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -41,7 +71,15 @@ export default async function ProjectPage(context: {
           <StartRunButton projectId={projectId} />
         </div>
 
-        <ProjectRunsTable runs={runs} />
+        <ScoreTrendChart runs={allRunsForChart} />
+
+        <ProjectRunsTable
+          runs={runs}
+          totalCount={totalCount}
+          currentPage={page}
+          pageSize={PAGE_SIZE}
+          projectId={projectId}
+        />
       </div>
     </main>
   );

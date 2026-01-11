@@ -32,10 +32,17 @@ enum HttpMethod {
 }
 
 enum RunStatus {
+  CREATED
+  UPLOADING
+  UPLOADED
+  PARSING
+  READY_FOR_JUDGING
+  JUDGING
+  COMPLETED
+  COMPLETED_LOW_CONFIDENCE
+  FAILED
   PENDING
   PROCESSING
-  COMPLETED
-  FAILED
 }
 
 enum EvaluationStatus {
@@ -266,7 +273,7 @@ model AgentRun {
   projectId     String
   testSuiteId   String?
   triggeredById String?
-  status        RunStatus   @default(PENDING)
+  status        RunStatus   @default(CREATED)
   taskName      String?
   taskDefinition Json?
   inputPayload  Json?
@@ -279,8 +286,13 @@ model AgentRun {
   testSuite   TestSuite? @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
   triggeredBy User?      @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
 
-  logfiles    RunLogfile[]
-  evaluations RunEvaluation[]
+  logfiles         RunLogfile[]
+  evaluations      RunEvaluation[]
+  runEvents        RunEvent[]
+  traceSummary     RunTraceSummary?
+  metrics          RunMetrics?
+  ruleFlags        RunRuleFlag[]
+  judgePacket      RunJudgePacket?
 
   @@index([projectId])
   @@index([testSuiteId])
@@ -320,6 +332,10 @@ model RunEvaluation {
   totalScore   Float?
   metricBreakdown Json?
   summary      String?          @db.Text
+  geminiJudgement Json?
+  groqJudgement   Json?
+  finalScorecard  Json?
+  confidence      Float?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -332,4 +348,83 @@ model RunEvaluation {
   @@index([testSuiteId])
   @@index([status])
   @@index([createdAt])
+}
+
+model RunEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  eventType   String
+  eventData   Json
+  timestamp   DateTime?
+  sequence    Int
+  createdAt   DateTime @default(now())
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([runId, sequence])
+  @@index([eventType])
+}
+
+model RunTraceSummary {
+  id              String   @id @default(cuid())
+  runId           String   @unique
+  normalizedTrace String   @db.Text
+  parserVersion   String
+  parseReport     Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model RunMetrics {
+  id            String   @id @default(cuid())
+  runId         String   @unique
+  totalSteps    Int
+  totalToolCalls Int
+  totalErrors   Int
+  totalRetries  Int
+  totalDurationMs Int?
+  parserVersion String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model RunRuleFlag {
+  id            String   @id @default(cuid())
+  runId         String
+  flagType      String
+  severity      String
+  message       String
+  evidenceEventIds String[] @default([])
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([flagType])
+  @@index([severity])
+}
+
+model RunJudgePacket {
+  id            String   @id @default(cuid())
+  runId         String   @unique
+  packet        String   @db.Text
+  packetSizeBytes Int
+  parserVersion String
+  rubricVersion String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
 }

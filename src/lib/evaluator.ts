@@ -101,7 +101,7 @@ ${trimmed}
     });
 
     raw = result.response.text();
-  } catch (_err) {
+  } catch {
     throw new Error("Model call failed");
   }
 
@@ -115,7 +115,7 @@ ${trimmed}
 
   try {
     parsed = JSON.parse(cleaned) as GeminiRawJSON;
-  } catch (_err) {
+  } catch {
     parsed = null;
   }
 

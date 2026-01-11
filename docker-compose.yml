@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic-test-harness-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_DAYS: ${JWT_EXPIRES_DAYS:-14}
+
+      GOOGLE_GEMINI_API: ${GOOGLE_GEMINI_API}
+
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_API_KEY_1: ${OPENAI_API_KEY_1:-}
+      OPENAI_API_KEY_2: ${OPENAI_API_KEY_2:-}
+      OPENAI_MODEL_1: ${OPENAI_MODEL_1:-}
+      OPENAI_MODEL_2: ${OPENAI_MODEL_2:-}
+
+      NODE_ENV: production
+    networks:
+      - app-network
+    volumes:
+      - ./prisma:/app/prisma:ro
+
+networks:
+  app-network:
+    driver: bridge
+
