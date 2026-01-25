@@ -7,6 +7,7 @@ export async function POST(req: Request) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const projectId = formData.get("projectId") as string | null;
+  const rubricId = formData.get("rubricId") as string | null;
 
   const user = await getSessionUser();
   if (!user)
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     data: {
       projectId,
       triggeredById: user.id,
+      rubricId: rubricId || null,
       status: "CREATED",
     },
   });

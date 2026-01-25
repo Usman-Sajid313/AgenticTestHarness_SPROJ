@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+type Rubric = {
+  id: string;
+  name: string;
+  description: string | null;
+};
 
 type StartRunModalProps = {
   open: boolean;
@@ -19,7 +25,43 @@ export default function StartRunModal({
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [rubrics, setRubrics] = useState<Rubric[]>([]);
+  const [selectedRubricId, setSelectedRubricId] = useState<string>("");
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchData = async () => {
+      try {
+        const meRes = await fetch("/api/me");
+        if (meRes.ok) {
+          const data = await meRes.json();
+          const wsId = data.user?.memberships?.[0]?.workspaceId;
+          if (wsId) {
+            setWorkspaceId(wsId);
+            
+            const rubricsRes = await fetch(`/api/rubrics?workspaceId=${wsId}`);
+            if (rubricsRes.ok) {
+              const rubricsData = await rubricsRes.json();
+              setRubrics(rubricsData.rubrics || []);
+              
+              // Auto-select default rubric if available
+              const defaultRubric = rubricsData.rubrics?.find((r: any) => r.isDefault);
+              if (defaultRubric) {
+                setSelectedRubricId(defaultRubric.id);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching rubrics:", error);
+      }
+    };
+
+    fetchData();
+  }, [open]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,6 +75,9 @@ export default function StartRunModal({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("projectId", projectId);
+      if (selectedRubricId) {
+        formData.append("rubricId", selectedRubricId);
+      }
 
       const uploadRes = await fetch("/api/runs/upload-logfile", {
         method: "POST",
@@ -68,13 +113,42 @@ export default function StartRunModal({
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="file"
-            accept=".txt,.log,.json,.jsonl,.ndjson"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10"
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-2">
+              Logfile
+            </label>
+            <input
+              type="file"
+              accept=".txt,.log,.json,.jsonl,.ndjson"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30"
+              required
+            />
+          </div>
+
+          {rubrics.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-2">
+                Evaluation Rubric (Optional)
+              </label>
+              <select
+                value={selectedRubricId}
+                onChange={(e) => setSelectedRubricId(e.target.value)}
+                className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">Use Default Rubric</option>
+                {rubrics.map((rubric) => (
+                  <option key={rubric.id} value={rubric.id}>
+                    {rubric.name}
+                    {rubric.description ? ` - ${rubric.description}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-white/40 mt-1">
+                Select a custom rubric or use the default evaluation criteria
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3">
             <button

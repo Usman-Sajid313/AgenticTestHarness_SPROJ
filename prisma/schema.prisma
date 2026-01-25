@@ -131,10 +131,11 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships Membership[]
-  projects    Project[]
-  tools       Tool[]
-  testSuites  TestSuite[]
+  memberships        Membership[]
+  projects           Project[]
+  tools              Tool[]
+  testSuites         TestSuite[]
+  evaluationRubrics  EvaluationRubric[]
 
   @@unique([name])
 }
@@ -257,14 +258,36 @@ model TestSuite {
   toolIds     Json     @default("[]")
   config      Json?
   variables   Json?
+  rubricId    String?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rubric      EvaluationRubric?  @relation(fields: [rubricId], references: [id], onDelete: SetNull)
   runs        AgentRun[]
   evaluations RunEvaluation[]
 
+  @@index([workspaceId])
+  @@index([rubricId])
+}
+
+model EvaluationRubric {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  dimensions  Json     // Array of dimension definitions
+  weights     Json?    // Optional weight overrides
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  testSuites  TestSuite[]
+  runs        AgentRun[]  @relation("RunRubrics")
+
+  @@unique([workspaceId, name])
   @@index([workspaceId])
 }
 
@@ -272,6 +295,7 @@ model AgentRun {
   id            String      @id @default(cuid())
   projectId     String
   testSuiteId   String?
+  rubricId      String?
   triggeredById String?
   status        RunStatus   @default(CREATED)
   taskName      String?
@@ -282,9 +306,10 @@ model AgentRun {
   startedAt     DateTime?
   completedAt   DateTime?
 
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  testSuite   TestSuite? @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
-  triggeredBy User?      @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testSuite   TestSuite?        @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
+  rubric      EvaluationRubric? @relation("RunRubrics", fields: [rubricId], references: [id], onDelete: SetNull)
+  triggeredBy User?             @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
 
   logfiles         RunLogfile[]
   evaluations      RunEvaluation[]
@@ -296,6 +321,7 @@ model AgentRun {
 
   @@index([projectId])
   @@index([testSuiteId])
+  @@index([rubricId])
   @@index([triggeredById])
   @@index([status])
   @@index([createdAt])

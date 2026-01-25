@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { validateJudgeBudget } from "@/lib/runBudgetValidator";
 
 export async function POST(
   req: Request,
@@ -28,6 +29,29 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // Validate budget before calling edge function
+  const budgetValidation = await validateJudgeBudget(id);
+  if (!budgetValidation.allowed) {
+    console.warn(`Judge budget validation failed for run ${id}:`, budgetValidation.reason);
+    return NextResponse.json(
+      {
+        error: "Budget limit exceeded",
+        details: budgetValidation.reason,
+        budgetInfo: {
+          estimatedCost: budgetValidation.estimatedCost,
+          budgetLimit: budgetValidation.budgetLimit,
+        },
+      },
+      { status: 429 } // 429 Too Many Requests (budget exhausted)
+    );
+  }
+
+  console.log(`Judge budget validation passed for run ${id}:`, {
+    estimatedCost: budgetValidation.estimatedCost,
+    estimatedTokens: budgetValidation.estimatedTokens,
+    budgetLimit: budgetValidation.budgetLimit,
+  });
 
   // Call Supabase Edge Function
   try {

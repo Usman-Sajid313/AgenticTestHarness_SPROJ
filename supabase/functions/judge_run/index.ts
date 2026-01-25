@@ -249,9 +249,10 @@ serve(async (req) => {
         id: string;
         projectId: string;
         testSuiteId: string | null;
+        rubricId: string | null;
         status: string;
       }>(
-        'SELECT id, "projectId", "testSuiteId", status FROM "AgentRun" WHERE id = $1',
+        'SELECT id, "projectId", "testSuiteId", "rubricId", status FROM "AgentRun" WHERE id = $1',
         [runId]
       );
 
@@ -263,6 +264,41 @@ serve(async (req) => {
       }
 
       const run = runs[0];
+      
+      // Fetch rubric if this run has one
+      let rubric: any = null;
+      let rubricId = run.rubricId;
+      
+      // If no direct rubric, check if test suite has one
+      if (!rubricId && run.testSuiteId) {
+        const testSuites = await dbQuery<{
+          rubricId: string | null;
+        }>(
+          'SELECT "rubricId" FROM "TestSuite" WHERE id = $1',
+          [run.testSuiteId]
+        );
+        if (testSuites.length > 0) {
+          rubricId = testSuites[0].rubricId;
+        }
+      }
+      
+      // Fetch the rubric data if we have a rubric ID
+      if (rubricId) {
+        const rubrics = await dbQuery<{
+          id: string;
+          name: string;
+          dimensions: string;
+        }>(
+          'SELECT id, name, dimensions FROM "EvaluationRubric" WHERE id = $1',
+          [rubricId]
+        );
+        if (rubrics.length > 0) {
+          rubric = {
+            ...rubrics[0],
+            dimensions: JSON.parse(rubrics[0].dimensions),
+          };
+        }
+      }
 
       if (run.status !== "READY_FOR_JUDGING" && run.status !== "JUDGING") {
         return new Response(
@@ -311,7 +347,7 @@ serve(async (req) => {
 
       let groqEvaluatorJudgement: Scorecard;
       try {
-        groqEvaluatorJudgement = await callGroqEvaluator(judgePacket, groqApiKey);
+        groqEvaluatorJudgement = await callGroqEvaluator(judgePacket, groqApiKey, rubric);
       } catch (evaluatorError) {
         const errorMessage = evaluatorError instanceof Error ? evaluatorError.message : String(evaluatorError);
         if (errorMessage.includes("quota") || errorMessage.includes("429") || errorMessage.includes("billing") || errorMessage.includes("rate limit exceeded")) {
@@ -332,7 +368,7 @@ serve(async (req) => {
       try {
         await sleep(500);
 
-        const verifierPromise = callGroqVerifier(judgePacket, groqEvaluatorJudgement, groqApiKey);
+        const verifierPromise = callGroqVerifier(judgePacket, groqEvaluatorJudgement, groqApiKey, rubric);
         const verifierTimeout = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error("Groq verifier call timeout")), 25000); // 25 second timeout
         });
@@ -457,9 +493,10 @@ serve(async (req) => {
 
 async function callGroqEvaluator(
   judgePacket: JudgePacket,
-  apiKey: string
+  apiKey: string,
+  rubric?: any
 ): Promise<Scorecard> {
-  const prompt = buildGroqEvaluatorPrompt(judgePacket);
+  const prompt = buildGroqEvaluatorPrompt(judgePacket, rubric);
   const config = RATE_LIMIT_CONFIG.groqEvaluator;
 
   let lastError: unknown = null;
@@ -584,9 +621,10 @@ async function callGroqEvaluator(
 async function callGroqVerifier(
   judgePacket: JudgePacket,
   evaluatorScorecard: Scorecard,
-  apiKey: string
+  apiKey: string,
+  rubric?: any
 ): Promise<Scorecard> {
-  const prompt = buildGroqVerifierPrompt(judgePacket, evaluatorScorecard);
+  const prompt = buildGroqVerifierPrompt(judgePacket, evaluatorScorecard, rubric);
   const config = RATE_LIMIT_CONFIG.groqVerifier;
 
   let lastError: unknown = null;
@@ -708,37 +746,10 @@ async function callGroqVerifier(
   );
 }
 
-function buildGroqEvaluatorPrompt(judgePacket: JudgePacket): string {
-  const taskText = judgePacket.task?.text || "Unknown task";
-  const totalSteps = judgePacket.meta?.logQuality?.totalSteps || 0;
-  const totalErrors = judgePacket.metrics?.totalErrors || 0;
-  const totalRetries = judgePacket.metrics?.totalRetries || 0;
-  const totalToolCalls = judgePacket.metrics?.totalToolCalls || 0;
-  const ruleFlags = judgePacket.ruleFlags || [];
-  const highSeverityFlags = ruleFlags.filter(f => f.severity === "high").length;
-
-  return `You are an expert evaluator of autonomous tool-using AI agents. Your job is to provide detailed, actionable feedback that helps improve the agent's performance.
-
-## EVALUATION CONTEXT
-
-**Task Goal:** ${taskText}
-**Run Statistics:**
-- Total Steps: ${totalSteps}
-- Tool Calls: ${totalToolCalls}
-- Errors: ${totalErrors}
-- Retries: ${totalRetries}
-- High-Severity Issues: ${highSeverityFlags}
-
-## EVALUATION INSTRUCTIONS
-
-CRITICAL RULES:
-1. Use ONLY information from the judge_packet. Do NOT invent events or results.
-2. Every score and claim MUST reference specific evidenceEventIds.
-3. Provide detailed, specific reasoning (3-5 sentences per dimension).
-4. Give actionable feedback - explain WHAT went wrong/right and WHY.
-5. Lower confidence if evidence is missing or incomplete.
-
-## SCORING RUBRIC
+function buildRubricSection(rubric?: any): string {
+  if (!rubric || !rubric.dimensions || !Array.isArray(rubric.dimensions)) {
+    // Use default rubric
+    return `## SCORING RUBRIC
 
 ### 1. Correctness and Task Compliance (0-100)
 **Evaluate:**
@@ -822,20 +833,34 @@ CRITICAL RULES:
 - 70-89: Good output with minor issues
 - 50-69: Acceptable output but incomplete or has issues
 - 30-49: Poor output, missing key elements
-- 0-29: Very poor or no useful output
+- 0-29: Very poor or no useful output`;
+  }
 
-## JUDGE PACKET DATA
+  // Use custom rubric
+  let rubricText = `## SCORING RUBRIC\n\n**Rubric:** ${rubric.name || "Custom Evaluation"}\n`;
+  
+  rubric.dimensions.forEach((dim: any, idx: number) => {
+    const weight = ((dim.weight || 0) * 100).toFixed(0);
+    rubricText += `\n### ${idx + 1}. ${dim.name} (0-100, weight: ${weight}%)\n`;
+    rubricText += `**Evaluate:** ${dim.description}\n\n`;
+    
+    if (dim.scoringCriteria && Array.isArray(dim.scoringCriteria)) {
+      rubricText += `**Scoring Guide:**\n`;
+      dim.scoringCriteria.forEach((criteria: any) => {
+        const range = criteria.scoreRange || [0, 10];
+        const scaledRange = `${range[0] * 10}-${range[1] * 10}`;
+        rubricText += `- ${scaledRange}: ${criteria.label} - ${criteria.description}\n`;
+      });
+    }
+  });
+  
+  return rubricText;
+}
 
-${JSON.stringify(judgePacket, null, 2)}
-
-## OUTPUT FORMAT
-
-Return STRICT JSON matching this exact schema:
-{
-  "overallScore": number (0-100, weighted average of dimensions),
-  "confidence": number (0-1, based on evidence completeness),
-  "dimensions": {
-    "correctness_and_task_compliance": {
+function buildDimensionsSchema(rubric?: any): string {
+  if (!rubric || !rubric.dimensions || !Array.isArray(rubric.dimensions)) {
+    // Default dimensions
+    return `    "correctness_and_task_compliance": {
       "score": number (0-100),
       "reasoning": string (3-5 sentences with specific examples and evidenceEventIds),
       "evidenceEventIds": string[] (specific event IDs that support this score),
@@ -876,7 +901,71 @@ Return STRICT JSON matching this exact schema:
       "evidenceEventIds": string[],
       "strengths": string[] (1-3 specific strengths for THIS dimension),
       "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    }
+    }`;
+  }
+
+  // Custom dimensions
+  return rubric.dimensions.map((dim: any, idx: number) => {
+    const key = dim.name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    const isLast = idx === rubric.dimensions.length - 1;
+    return `    "${key}": {
+      "score": number (0-100),
+      "reasoning": string (3-5 sentences with specific examples and evidenceEventIds),
+      "evidenceEventIds": string[] (specific event IDs that support this score),
+      "strengths": string[] (1-3 specific strengths for THIS dimension),
+      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
+    }${isLast ? "" : ","}`;
+  }).join("\n");
+}
+
+function buildGroqEvaluatorPrompt(judgePacket: JudgePacket, rubric?: any): string {
+  const taskText = judgePacket.task?.text || "Unknown task";
+  const totalSteps = judgePacket.meta?.logQuality?.totalSteps || 0;
+  const totalErrors = judgePacket.metrics?.totalErrors || 0;
+  const totalRetries = judgePacket.metrics?.totalRetries || 0;
+  const totalToolCalls = judgePacket.metrics?.totalToolCalls || 0;
+  const ruleFlags = judgePacket.ruleFlags || [];
+  const highSeverityFlags = ruleFlags.filter(f => f.severity === "high").length;
+
+  // Build the rubric section dynamically
+  const rubricSection = buildRubricSection(rubric);
+  const dimensionsSchema = buildDimensionsSchema(rubric);
+
+  return `You are an expert evaluator of autonomous tool-using AI agents. Your job is to provide detailed, actionable feedback that helps improve the agent's performance.
+
+## EVALUATION CONTEXT
+
+**Task Goal:** ${taskText}
+**Run Statistics:**
+- Total Steps: ${totalSteps}
+- Tool Calls: ${totalToolCalls}
+- Errors: ${totalErrors}
+- Retries: ${totalRetries}
+- High-Severity Issues: ${highSeverityFlags}
+
+## EVALUATION INSTRUCTIONS
+
+CRITICAL RULES:
+1. Use ONLY information from the judge_packet. Do NOT invent events or results.
+2. Every score and claim MUST reference specific evidenceEventIds.
+3. Provide detailed, specific reasoning (3-5 sentences per dimension).
+4. Give actionable feedback - explain WHAT went wrong/right and WHY.
+5. Lower confidence if evidence is missing or incomplete.
+
+${rubricSection}
+
+## JUDGE PACKET DATA
+
+${JSON.stringify(judgePacket, null, 2)}
+
+## OUTPUT FORMAT
+
+Return STRICT JSON matching this exact schema:
+{
+  "overallScore": number (0-100, weighted average of dimensions),
+  "confidence": number (0-1, based on evidence completeness),
+  "dimensions": {
+${dimensionsSchema}
   },
   "strengths": string[] (3-5 specific, actionable strengths with evidence references),
   "weaknesses": string[] (3-5 specific, actionable weaknesses with improvement suggestions),
@@ -897,8 +986,11 @@ Return STRICT JSON matching this exact schema:
 
 function buildGroqVerifierPrompt(
   judgePacket: JudgePacket,
-  evaluatorScorecard: Scorecard
+  evaluatorScorecard: Scorecard,
+  rubric?: any
 ): string {
+  const dimensionsSchema = buildDimensionsSchema(rubric);
+  
   return `You are a verification evaluator and quality assurance reviewer. Your job is to:
 1. Verify the primary evaluator's scorecard is accurate and well-supported
 2. Check that all evidenceEventIds actually exist in the judge_packet
@@ -943,48 +1035,7 @@ Return STRICT JSON matching this exact schema:
   "overallScore": number (0-100),
   "confidence": number (0-1),
   "dimensions": {
-    "correctness_and_task_compliance": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences: verify primary evaluator's score, provide your assessment, note any evidence issues),
-      "evidenceEventIds": string[] (verify these exist in judge_packet),
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    },
-    "resilience_and_error_handling": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences with verification notes),
-      "evidenceEventIds": string[],
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    },
-    "efficiency": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences with verification notes),
-      "evidenceEventIds": string[],
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    },
-    "logical_coherence_and_reasoning": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences with verification notes),
-      "evidenceEventIds": string[],
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    },
-    "robustness_to_constraints": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences with verification notes),
-      "evidenceEventIds": string[],
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    },
-    "output_quality": {
-      "score": number (0-100),
-      "reasoning": string (3-5 sentences with verification notes),
-      "evidenceEventIds": string[],
-      "strengths": string[] (1-3 specific strengths for THIS dimension),
-      "weaknesses": string[] (1-3 specific weaknesses for THIS dimension)
-    }
+${dimensionsSchema}
   },
   "strengths": string[] (your independent list, 3-5 specific items),
   "weaknesses": string[] (your independent list, 3-5 specific items),
