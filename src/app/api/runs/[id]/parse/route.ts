@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { validateParseBudget } from "@/lib/runBudgetValidator";
 
 export async function POST(
   req: Request,
@@ -35,6 +36,29 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // Validate budget before calling edge function
+  const budgetValidation = await validateParseBudget(id);
+  if (!budgetValidation.allowed) {
+    console.warn(`Parse budget validation failed for run ${id}:`, budgetValidation.reason);
+    return NextResponse.json(
+      {
+        error: "Budget limit exceeded",
+        details: budgetValidation.reason,
+        budgetInfo: {
+          estimatedCost: budgetValidation.estimatedCost,
+          budgetLimit: budgetValidation.budgetLimit,
+        },
+      },
+      { status: 429 } // 429 Too Many Requests (budget exhausted)
+    );
+  }
+
+  console.log(`Parse budget validation passed for run ${id}:`, {
+    estimatedCost: budgetValidation.estimatedCost,
+    estimatedTokens: budgetValidation.estimatedTokens,
+    budgetLimit: budgetValidation.budgetLimit,
+  });
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

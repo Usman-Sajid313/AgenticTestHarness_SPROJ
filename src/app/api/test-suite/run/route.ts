@@ -9,11 +9,16 @@ import { getSuiteForUser, recordSuiteRun, type TestRunToolCall } from '@/lib/tes
 import { getMockToolCatalog, type MockToolDefinition } from '@/lib/mockToolCatalog';
 import { getConfiguredOpenAIModels } from '@/lib/openaiModels';
 import { getActiveOpenAIKey } from '@/lib/openaiKeys';
+import { BudgetTracker, DEFAULT_BUDGETS, type BudgetConfig } from '@/lib/budgetValidator';
 
 const RunRequestSchema = z.object({
   temperature: z.number().min(0).max(1).optional(),
   maxIterations: z.number().int().min(1).max(8).optional(),
   model: z.string().min(1).optional(),
+  budget: z.object({
+    maxBudget: z.number().min(0.01).optional(),
+    costPerMillionTokens: z.number().min(0.001).optional(),
+  }).optional(),
 });
 
 function requireEnv(name: string) {
@@ -255,6 +260,16 @@ export async function POST(req: Request) {
   const { readable, writable } = new TransformStream<Uint8Array>();
   const writer = writable.getWriter();
 
+  // Initialize budget tracker
+  const budgetConfig: BudgetConfig = options.budget?.maxBudget 
+    ? {
+        maxBudget: options.budget.maxBudget,
+        costPerMillionTokens: options.budget.costPerMillionTokens ?? 0.1,
+      }
+    : DEFAULT_BUDGETS.DAILY_RUN; // Default to $25 budget if not specified
+
+  const budgetTracker = new BudgetTracker(budgetConfig);
+
   const streamRun = async () => {
     const transcript: { role: 'system' | 'user' | 'assistant' | 'tool'; content: string }[] = [];
     const toolLogs: TestRunToolCall[] = [];
@@ -279,14 +294,46 @@ export async function POST(req: Request) {
         suiteId: suite.id,
         startedAt: runStartedAt.toISOString(),
         tools: toolDefs,
+        budget: {
+          maxBudget: budgetConfig.maxBudget,
+          costPerMillionTokens: budgetConfig.costPerMillionTokens,
+        },
       });
 
       for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+        // Validate budget before making model call
+        try {
+          budgetTracker.validateCall(messages, 500); // Estimate 500 tokens for response
+        } catch (budgetError) {
+          status = 'error';
+          errorSummary = (budgetError as Error).message;
+          transcript.push({ role: 'assistant', content: `Run aborted due to budget limit: ${errorSummary}` });
+          await writeEvent(writer, {
+            type: 'run-error',
+            error: errorSummary,
+            budgetExceeded: true,
+            budgetUsage: budgetTracker.getUsage(),
+          });
+          break;
+        }
+
+        // Make the model call
         const aiMessage = await modelWithTools.invoke(messages);
         lastAssistantMessage = aiMessage;
         const content = stringifyMessageContent(aiMessage.content);
+        
+        // Record token usage after the call
+        budgetTracker.recordMessageUsage(messages, content);
+        
         transcript.push({ role: 'assistant', content });
         messages.push(aiMessage);
+
+        // Send budget update event
+        await writeEvent(writer, {
+          type: 'budget-update',
+          usage: budgetTracker.getUsage(),
+          summary: budgetTracker.getSummary(),
+        });
 
         if (!aiMessage.tool_calls?.length) {
           status = 'success';
@@ -391,16 +438,22 @@ export async function POST(req: Request) {
     } catch (err) {
       status = 'error';
       errorSummary = (err as Error).message ?? 'Unknown error during execution.';
+      const isBudgetError = errorSummary.includes('Budget exceeded');
+      
       transcript.push({ role: 'assistant', content: `Run aborted: ${errorSummary}` });
       await writeEvent(writer, {
         type: 'run-error',
         error: errorSummary,
+        budgetExceeded: isBudgetError,
+        budgetUsage: budgetTracker.getUsage(),
       });
     } finally {
       const runCompletedAt = new Date();
       const summaryContent =
         lastAssistantMessage ? stringifyMessageContent(lastAssistantMessage.content) : errorSummary ?? 'No response produced.';
 
+      const budgetUsage = budgetTracker.getUsage();
+      
       const runRecord = recordSuiteRun(user.id, {
         suiteId: suite.id,
         status,
@@ -412,6 +465,8 @@ export async function POST(req: Request) {
         metrics: {
           toolCalls: toolLogs.length,
           durationMs: runCompletedAt.getTime() - runStartedAt.getTime(),
+          totalTokens: budgetUsage.totalTokens,
+          totalCost: budgetUsage.totalCost,
         },
         rawModelOutput: lastAssistantMessage,
       });
@@ -430,6 +485,8 @@ export async function POST(req: Request) {
         },
         mockTools: toolDefs,
         workspaceTools,
+        budgetUsage,
+        budgetSummary: budgetTracker.getSummary(),
       });
 
       await closeWriter(writer);

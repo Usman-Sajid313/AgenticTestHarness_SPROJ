@@ -37,6 +37,7 @@ export default function ProjectRunsTable({
   const searchParams = useSearchParams();
   const totalPages = Math.ceil(totalCount / pageSize);
   const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
+  const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -84,6 +85,29 @@ export default function ProjectRunsTable({
       setDownloadingRunId(null);
     }
   };
+
+  const handleToggleRun = (runId: string) => {
+    setSelectedRuns((prev) =>
+      prev.includes(runId)
+        ? prev.filter((id) => id !== runId)
+        : [...prev, runId]
+    );
+  };
+
+  const handleCompare = () => {
+    if (selectedRuns.length >= 2 && selectedRuns.length <= 4) {
+      router.push(`/compare?ids=${selectedRuns.join(",")}`);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRuns.length === runs.length) {
+      setSelectedRuns([]);
+    } else {
+      setSelectedRuns(runs.map((run) => run.id));
+    }
+  };
+
   if (!runs || runs.length === 0) {
     return (
       <div className="rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl mt-10">
@@ -106,11 +130,43 @@ export default function ProjectRunsTable({
   };
 
   return (
-    <div className="mt-10 overflow-hidden rounded-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur-xl">
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-b border-white/10 text-white/70">
-            <th className="px-6 py-3">Run ID</th>
+    <div className="mt-10 space-y-4">
+      {selectedRuns.length >= 2 && (
+        <div className="flex items-center justify-between rounded-2xl bg-purple-500/10 px-6 py-4 ring-1 ring-purple-500/30">
+          <p className="text-sm text-purple-200">
+            {selectedRuns.length} run{selectedRuns.length !== 1 ? "s" : ""} selected
+            {selectedRuns.length > 4 && " (max 4 for comparison)"}
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedRuns([])}
+              className="px-4 py-2 rounded-lg bg-white/10 text-white/70 hover:text-white hover:bg-white/15 transition ring-1 ring-white/20 text-sm"
+            >
+              Clear Selection
+            </button>
+            <button
+              onClick={handleCompare}
+              disabled={selectedRuns.length < 2 || selectedRuns.length > 4}
+              className="px-4 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+            >
+              Compare Runs
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="overflow-hidden rounded-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur-xl">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-white/10 text-white/70">
+              <th className="px-6 py-3 w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedRuns.length === runs.length && runs.length > 0}
+                  onChange={handleSelectAll}
+                  className="h-4 w-4 rounded border-white/20 bg-white/10 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
+                />
+              </th>
+              <th className="px-6 py-3">Run ID</th>
             <th className="px-6 py-3">Status</th>
             <th className="px-6 py-3">Score</th>
             <th className="px-6 py-3">Created</th>
@@ -129,8 +185,17 @@ export default function ProjectRunsTable({
             return (
               <tr
                 key={run.id}
-                className="border-b border-white/5 text-white/90 hover:bg-white/5 transition cursor-pointer"
+                className="border-b border-white/5 text-white/90 hover:bg-white/5 transition"
               >
+                <td className="px-6 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedRuns.includes(run.id)}
+                    onChange={() => handleToggleRun(run.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-4 w-4 rounded border-white/20 bg-white/10 text-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-offset-0 cursor-pointer"
+                  />
+                </td>
                 <td className="px-6 py-4">
                   <Link
                     href={`/runs/${run.id}`}
@@ -190,6 +255,7 @@ export default function ProjectRunsTable({
           })}
         </tbody>
       </table>
+      </div>
 
       {totalPages > 1 && (
         <div className="border-t border-white/10 px-6 py-4 flex items-center justify-between">
