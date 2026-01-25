@@ -8,7 +8,7 @@ type Rubric = {
   id: string;
   name: string;
   description: string | null;
-  dimensions: any;
+  dimensions: Array<{ name: string; weight: number; description?: string }>;
   isDefault: boolean;
   createdAt: string;
   _count: {
@@ -18,7 +18,7 @@ type Rubric = {
 };
 
 export default function RubricsPage() {
-  const router = useRouter();
+  useRouter(); // Keep for potential future navigation
   const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [loading, setLoading] = useState(true);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -196,7 +196,7 @@ export default function RubricsPage() {
 
                   {dimensionCount > 0 && (
                     <div className="flex flex-wrap gap-2 mt-4">
-                      {(rubric.dimensions as any[]).map((dim: any, idx: number) => (
+                      {rubric.dimensions.map((dim, idx) => (
                         <div
                           key={idx}
                           className="px-3 py-1 bg-white/5 rounded-lg text-sm"

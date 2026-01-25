@@ -7,6 +7,7 @@ type Rubric = {
   id: string;
   name: string;
   description: string | null;
+  isDefault?: boolean;
 };
 
 type StartRunModalProps = {
@@ -27,7 +28,7 @@ export default function StartRunModal({
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [selectedRubricId, setSelectedRubricId] = useState<string>("");
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [, setWorkspaceId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function StartRunModal({
               setRubrics(rubricsData.rubrics || []);
               
               // Auto-select default rubric if available
-              const defaultRubric = rubricsData.rubrics?.find((r: any) => r.isDefault);
+              const defaultRubric = rubricsData.rubrics?.find((r: Rubric) => r.isDefault);
               if (defaultRubric) {
                 setSelectedRubricId(defaultRubric.id);
               }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -60,7 +61,7 @@ type ComparisonData = {
   comparedAt: string;
 };
 
-export default function ComparePage() {
+function ComparePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ids = searchParams.get("ids");
@@ -196,5 +197,28 @@ export default function ComparePage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function ComparePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="relative min-h-screen w-full bg-black">
+          <div className="absolute inset-0 bg-deep-space" />
+          <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
+          <div className="relative mx-auto max-w-7xl px-6 py-12">
+            <div className="flex h-64 items-center justify-center rounded-2xl bg-white/5 p-10 ring-1 ring-white/10 backdrop-blur-xl">
+              <div className="text-center">
+                <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                <p className="text-white/70">Loading...</p>
+              </div>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <ComparePageContent />
+    </Suspense>
   );
 }

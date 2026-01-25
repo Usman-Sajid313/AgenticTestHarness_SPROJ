@@ -125,9 +125,9 @@ export async function POST(req: Request) {
         workspaceId,
         name: validated.name,
         description: validated.description || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dimensions: validated.dimensions as any,
         isDefault: validated.isDefault || false,
-        createdById: user.id,
       },
     });
 
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation error", details: error.errors },
+        { error: "Validation error", details: error.issues },
         { status: 400 }
       );
     }

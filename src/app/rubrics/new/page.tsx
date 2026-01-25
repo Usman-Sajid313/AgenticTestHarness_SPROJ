@@ -446,9 +446,9 @@ export default function NewRubricPage() {
     ]);
   };
 
-  const updateDimension = (index: number, field: keyof Dimension, value: any) => {
+  const updateDimension = (index: number, field: keyof Dimension, value: Dimension[keyof Dimension]) => {
     const updated = [...dimensions];
-    (updated[index] as any)[field] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setDimensions(updated);
   };
 
@@ -718,7 +718,7 @@ export default function NewRubricPage() {
 
               {dimensions.length === 0 && (
                 <div className="text-center py-12 text-white/40">
-                  No dimensions yet. Click "Add Dimension" to start building your
+                  No dimensions yet. Click &quot;Add Dimension&quot; to start building your
                   rubric.
                 </div>
               )}

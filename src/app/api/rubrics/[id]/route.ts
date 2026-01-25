@@ -26,23 +26,18 @@ const RubricSchema = z.object({
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   const rubric = await prisma.evaluationRubric.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       _count: {
         select: {
           testSuites: true,
@@ -73,18 +68,20 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   try {
     const body = await req.json();
 
     const rubric = await prisma.evaluationRubric.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!rubric) {
@@ -124,17 +121,18 @@ export async function PUT(
         where: { 
           workspaceId: rubric.workspaceId, 
           isDefault: true,
-          id: { not: params.id }
+          id: { not: id }
         },
         data: { isDefault: false },
       });
     }
 
     const updated = await prisma.evaluationRubric.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: validated.name,
         description: validated.description || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dimensions: validated.dimensions as any,
         isDefault: validated.isDefault !== undefined ? validated.isDefault : rubric.isDefault,
       },
@@ -144,7 +142,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation error", details: error.errors },
+        { error: "Validation error", details: error.issues },
         { status: 400 }
       );
     }
@@ -158,15 +156,17 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   const rubric = await prisma.evaluationRubric.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       _count: {
         select: {
@@ -206,7 +206,7 @@ export async function DELETE(
   }
 
   await prisma.evaluationRubric.delete({
-    where: { id: params.id },
+    where: { id },
   });
 
   return NextResponse.json({ success: true });
