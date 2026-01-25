@@ -315,6 +315,5 @@ export default function ProjectRunsTable({
         </div>
       )}
     </div>
-    </div>
   );
 }
