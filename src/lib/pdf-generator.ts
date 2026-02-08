@@ -19,163 +19,213 @@ type EvaluationData = {
   } | null;
 };
 
+const MARGIN = 20;
+const FOOTER_HEIGHT = 18;
+const LINE_HEIGHT = 5;
+const SECTION_GAP = 14;
+const BULLET_INDENT = 6;
+
+/** Split "item1; item2" into trimmed array; single item returns one element. */
+function splitList(text: string): string[] {
+  if (!text || !text.trim()) return [];
+  return text
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export async function generateRunPDF(data: EvaluationData): Promise<void> {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  const contentWidth = pageWidth - 2 * margin;
-  let yPos = margin;
+  const contentWidth = pageWidth - 2 * MARGIN;
+  const safeBottom = pageHeight - MARGIN - FOOTER_HEIGHT;
+  let yPos = MARGIN;
 
   const checkPageBreak = (requiredHeight: number) => {
-    if (yPos + requiredHeight > pageHeight - margin) {
+    if (yPos + requiredHeight > safeBottom) {
       doc.addPage();
-      yPos = margin;
+      yPos = MARGIN;
     }
   };
 
-  doc.setFontSize(24);
+  // ---- Header ----
+  doc.setFontSize(22);
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
-  doc.text("Evaluation Report", margin, yPos);
-  yPos += 15;
+  doc.text("Evaluation Report", MARGIN, yPos);
+  yPos += 12;
+
   doc.setFontSize(10);
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(80, 80, 80);
   doc.setFont("helvetica", "normal");
-  doc.text(`Run ID: ${data.runId}`, margin, yPos);
-  yPos += 6;
-  doc.text(`Created: ${new Date(data.createdAt).toLocaleString()}`, margin, yPos);
-  yPos += 6;
+  doc.text(`Run ID: ${data.runId}`, MARGIN, yPos);
+  yPos += LINE_HEIGHT + 2;
+  doc.text(`Created: ${new Date(data.createdAt).toLocaleString()}`, MARGIN, yPos);
+  yPos += LINE_HEIGHT;
   if (data.completedAt) {
-    doc.text(`Completed: ${new Date(data.completedAt).toLocaleString()}`, margin, yPos);
-    yPos += 6;
+    doc.text(`Completed: ${new Date(data.completedAt).toLocaleString()}`, MARGIN, yPos);
+    yPos += LINE_HEIGHT;
   }
   if (data.projectName) {
-    doc.text(`Project: ${data.projectName}`, margin, yPos);
-    yPos += 6;
+    doc.text(`Project: ${data.projectName}`, MARGIN, yPos);
+    yPos += LINE_HEIGHT;
   }
-  yPos += 10;
+  yPos += SECTION_GAP;
 
+  // ---- Overall Score (score and summary clearly separated) ----
   if (data.totalScore !== null) {
-    checkPageBreak(40);
     const score = Math.round(data.totalScore);
 
-    doc.setFillColor(139, 92, 246);
-    doc.rect(margin, yPos, 40, 40, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
+    // Score block: label + score box on one row
+    checkPageBreak(50);
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "bold");
-    doc.text(score.toString(), margin + 20, yPos + 25, { align: "center" });
+    doc.text("Overall Score", MARGIN, yPos + 8);
 
+    const scoreBoxSize = 36;
+    const scoreBoxX = pageWidth - MARGIN - scoreBoxSize;
+    doc.setFillColor(139, 92, 246);
+    doc.rect(scoreBoxX, yPos, scoreBoxSize, scoreBoxSize, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text(score.toString(), scoreBoxX + scoreBoxSize / 2, yPos + scoreBoxSize / 2 + 2, {
+      align: "center",
+      baseline: "middle",
+    });
+    yPos += scoreBoxSize + SECTION_GAP;
+
+    // Summary full width below the score row
     if (data.metricBreakdown?.overallComment) {
-      doc.setFontSize(12);
+      checkPageBreak(30);
+      doc.setFontSize(10);
       doc.setTextColor(50, 50, 50);
       doc.setFont("helvetica", "normal");
-      const commentLines = doc.splitTextToSize(data.metricBreakdown.overallComment, contentWidth - 50);
-      doc.text(commentLines, margin + 50, yPos + 15);
-      yPos += Math.max(40, commentLines.length * 6);
-    } else {
-      yPos += 40;
+      const commentLines = doc.splitTextToSize(
+        data.metricBreakdown.overallComment,
+        contentWidth
+      );
+      doc.text(commentLines, MARGIN, yPos + LINE_HEIGHT);
+      yPos += commentLines.length * LINE_HEIGHT + SECTION_GAP;
     }
-    yPos += 10;
   }
 
+  // ---- Low confidence banner ----
   if (data.confidence !== null && data.confidence < 0.7) {
-    checkPageBreak(15);
-    doc.setFillColor(234, 179, 8);
-    doc.rect(margin, yPos, contentWidth, 12, "F");
-    doc.setFontSize(10);
+    checkPageBreak(16);
+    doc.setFillColor(253, 224, 71);
+    doc.rect(MARGIN, yPos, contentWidth, 12, "F");
+    doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "bold");
     doc.text(
-      `⚠️ Low confidence evaluation (${Math.round(data.confidence * 100)}%). Judges disagreed significantly.`,
-      margin + 5,
+      `Low confidence evaluation (${Math.round(data.confidence * 100)}%). Judges disagreed significantly.`,
+      MARGIN + 4,
       yPos + 8
     );
     yPos += 18;
   }
 
+  // ---- Dimensions ----
   if (data.metricBreakdown?.dimensions) {
     const dimensions = Object.entries(data.metricBreakdown.dimensions);
+    const colWidth = (contentWidth - 8) / 2;
 
     for (const [key, dim] of dimensions) {
-      checkPageBreak(60);
+      const dimensionName = key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
 
-      doc.setFillColor(240, 240, 240);
-      doc.rect(margin, yPos, contentWidth, 8, "F");
-
-      const dimensionName = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      doc.setFontSize(14);
+      // Section header bar + title + score (right-aligned)
+      checkPageBreak(40);
+      doc.setFillColor(245, 245, 245);
+      doc.rect(MARGIN, yPos, contentWidth, 10, "F");
+      doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "bold");
-      doc.text(dimensionName, margin + 5, yPos + 6);
-
-      doc.setFontSize(12);
+      doc.text(dimensionName, MARGIN + 4, yPos + 7);
+      doc.setFontSize(11);
       doc.setTextColor(139, 92, 246);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${dim.score} / 100`, pageWidth - margin - 30, yPos + 6);
-      yPos += 12;
+      doc.text(`${dim.score} / 100`, pageWidth - MARGIN - 4, yPos + 7, {
+        align: "right",
+      });
+      yPos += 14;
 
+      // Summary
       if (dim.summary) {
-        checkPageBreak(20);
-        doc.setFontSize(10);
-        doc.setTextColor(50, 50, 50);
-        doc.setFont("helvetica", "normal");
         const summaryLines = doc.splitTextToSize(dim.summary, contentWidth);
-        doc.text(summaryLines, margin + 5, yPos + 5);
-        yPos += summaryLines.length * 5 + 5;
-      }
-
-      checkPageBreak(30);
-      const colWidth = (contentWidth - 10) / 2;
-
-      if (dim.strengths) {
+        const summaryHeight = summaryLines.length * LINE_HEIGHT + 4;
+        checkPageBreak(summaryHeight);
         doc.setFontSize(9);
-        doc.setTextColor(16, 185, 129);
-        doc.setFont("helvetica", "bold");
-        doc.text("What went well", margin + 5, yPos + 5);
-        doc.setFontSize(8);
-        doc.setTextColor(50, 50, 50);
+        doc.setTextColor(60, 60, 60);
         doc.setFont("helvetica", "normal");
-        const strengthsLines = doc.splitTextToSize(dim.strengths, colWidth - 10);
-        doc.text(strengthsLines, margin + 5, yPos + 10);
+        doc.text(summaryLines, MARGIN, yPos + LINE_HEIGHT);
+        yPos += summaryHeight;
       }
 
-      if (dim.weaknesses) {
-        doc.setFontSize(9);
-        doc.setTextColor(251, 113, 133);
-        doc.setFont("helvetica", "bold");
-        doc.text("Where to improve", margin + colWidth + 5, yPos + 5);
-        doc.setFontSize(8);
-        doc.setTextColor(50, 50, 50);
-        doc.setFont("helvetica", "normal");
-        const weaknessesLines = doc.splitTextToSize(dim.weaknesses, colWidth - 10);
-        doc.text(weaknessesLines, margin + colWidth + 5, yPos + 10);
+      // What went well / Where to improve (two columns, bullet lists)
+      const strengthsItems = splitList(dim.strengths ?? "");
+      const weaknessesItems = splitList(dim.weaknesses ?? "");
+      const bulletWidth = colWidth - BULLET_INDENT - 4;
+      const leftX = MARGIN + BULLET_INDENT;
+      const rightX = MARGIN + colWidth + 4 + BULLET_INDENT;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(16, 185, 129);
+      doc.text("What went well", MARGIN, yPos + 5);
+      doc.setTextColor(220, 38, 127);
+      doc.text("Where to improve", MARGIN + colWidth + 4, yPos + 5);
+      yPos += 8;
+
+      doc.setFontSize(8);
+      doc.setTextColor(50, 50, 50);
+      doc.setFont("helvetica", "normal");
+
+      const maxRows = Math.max(strengthsItems.length, weaknessesItems.length);
+      for (let i = 0; i < maxRows; i++) {
+        const leftItem = strengthsItems[i];
+        const rightItem = weaknessesItems[i];
+        const leftLines = leftItem
+          ? doc.splitTextToSize(`• ${leftItem}`, bulletWidth)
+          : [];
+        const rightLines = rightItem
+          ? doc.splitTextToSize(`• ${rightItem}`, bulletWidth)
+          : [];
+        const rowHeight =
+          Math.max(leftLines.length, rightLines.length) * LINE_HEIGHT + 2;
+        checkPageBreak(rowHeight + 2);
+        if (leftItem) doc.text(leftLines, leftX, yPos + LINE_HEIGHT);
+        if (rightItem) doc.text(rightLines, rightX, yPos + LINE_HEIGHT);
+        yPos += rowHeight;
       }
 
-      yPos += 35;
+      yPos += SECTION_GAP;
     }
   }
 
+  // ---- Footer on every page ----
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      `Page ${i} of ${totalPages}`,
-      pageWidth / 2,
-      pageHeight - 10,
-      { align: "center" }
-    );
+    doc.setTextColor(140, 140, 140);
+    doc.setFont("helvetica", "normal");
     doc.text(
       `Generated on ${new Date().toLocaleString()}`,
-      margin,
+      MARGIN,
       pageHeight - 10
+    );
+    doc.text(
+      `Page ${i} of ${totalPages}`,
+      pageWidth - MARGIN,
+      pageHeight - 10,
+      { align: "right" }
     );
   }
 
   const filename = `evaluation-${data.runId.slice(0, 12)}-${new Date().toISOString().split("T")[0]}.pdf`;
   doc.save(filename);
 }
-

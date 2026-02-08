@@ -7,13 +7,17 @@ const CONFIDENCE_THRESHOLD = 0.7;
 const SCORE_DISAGREEMENT_THRESHOLD = 15;
 
 
+/** Free plan limits (RPM = requests per minute). Min delay between requests = 60000 / RPM ms. */
+const FREE_PLAN_RPM = 30; // most free-plan models are RPM 30; we space requests to stay under
+const MIN_DELAY_MS = Math.ceil(60000 / FREE_PLAN_RPM); // 2000ms for 30 RPM
+
 const RATE_LIMIT_CONFIG = {
   groqEvaluator: {
     maxRetries: 3,
     initialDelayMs: 1000,
     maxDelayMs: 15000,
     backoffMultiplier: 2,
-    minDelayBetweenRequests: 1000,
+    minDelayBetweenRequests: MIN_DELAY_MS,
     requestTimeoutMs: 30000,
   },
   groqVerifier: {
@@ -21,18 +25,36 @@ const RATE_LIMIT_CONFIG = {
     initialDelayMs: 1000,
     maxDelayMs: 15000,
     backoffMultiplier: 2,
-    minDelayBetweenRequests: 1000,
+    minDelayBetweenRequests: MIN_DELAY_MS,
     requestTimeoutMs: 30000,
   },
 };
 
+/** Primary evaluator (used as main/reference). Free plan: RPM 30, RPD 1K, TPM 12K, TPD 100K */
+const GROQ_MODEL_PRIMARY = "llama-3.3-70b-versatile";
+/** Verifier model. Free plan: RPM 30, RPD 14.4K, TPM 6K, TPD 500K */
+const GROQ_MODEL_VERIFIER = "llama-3.1-8b-instant";
 
-const GROQ_MODELS = {
-  evaluator: "llama-3.3-70b-versatile",
-  verifier: "llama-3.1-8b-instant",
-};
+/**
+ * Panel of models from the free plan only. Limits from Free Plan table:
+ * - llama-3.3-70b-versatile: RPM 30, RPD 1K, TPM 12K, TPD 100K
+ * - llama-3.1-8b-instant: RPM 30, RPD 14.4K, TPM 6K, TPD 500K
+ * - groq/compound-mini: RPM 30, RPD 250, TPM 70K
+ * - groq/compound: RPM 30, RPD 250, TPM 70K
+ * - meta-llama/llama-4-scout-17b-16e-instruct: RPM 30, RPD 1K, TPM 30K, TPD 500K
+ * - qwen/qwen3-32b: RPM 60, RPD 1K, TPM 6K, TPD 500K
+ */
+const GROQ_PANEL_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "groq/compound-mini",
+  "groq/compound",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "qwen/qwen3-32b",
+];
 
-let lastGroqEvaluatorRequest = 0;
+/** Per-model last request time for free-plan RPM adherence */
+const lastRequestByModel = new Map<string, number>();
 let lastGroqVerifierRequest = 0;
 
 function sleep(ms: number): Promise<void> {
@@ -68,9 +90,11 @@ function extractRetryAfter(error: unknown): number | null {
   return null;
 }
 
-async function ensureRateLimit(provider: "groqEvaluator" | "groqVerifier"): Promise<void> {
+async function ensureRateLimit(provider: "groqEvaluator" | "groqVerifier", modelId?: string): Promise<void> {
   const config = RATE_LIMIT_CONFIG[provider];
-  const lastRequest = provider === "groqEvaluator" ? lastGroqEvaluatorRequest : lastGroqVerifierRequest;
+  const lastRequest = provider === "groqVerifier"
+    ? lastGroqVerifierRequest
+    : (modelId ? lastRequestByModel.get(modelId) ?? 0 : 0);
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequest;
 
@@ -79,10 +103,10 @@ async function ensureRateLimit(provider: "groqEvaluator" | "groqVerifier"): Prom
     await sleep(waitTime);
   }
 
-  if (provider === "groqEvaluator") {
-    lastGroqEvaluatorRequest = Date.now();
-  } else {
+  if (provider === "groqVerifier") {
     lastGroqVerifierRequest = Date.now();
+  } else if (modelId) {
+    lastRequestByModel.set(modelId, Date.now());
   }
 }
 
@@ -264,11 +288,11 @@ serve(async (req) => {
       }
 
       const run = runs[0];
-      
+
       // Fetch rubric if this run has one
       let rubric: any = null;
       let rubricId = run.rubricId;
-      
+
       // If no direct rubric, check if test suite has one
       if (!rubricId && run.testSuiteId) {
         const testSuites = await dbQuery<{
@@ -281,7 +305,7 @@ serve(async (req) => {
           rubricId = testSuites[0].rubricId;
         }
       }
-      
+
       // Fetch the rubric data if we have a rubric ID
       if (rubricId) {
         const rubrics = await dbQuery<{
@@ -345,42 +369,54 @@ serve(async (req) => {
         );
       }
 
-      let groqEvaluatorJudgement: Scorecard;
+      // Run multi-model panel (all free GROQ models)
+      let panelResults: Array<{ model: string; scorecard: Scorecard }>;
       try {
-        groqEvaluatorJudgement = await callGroqEvaluator(judgePacket, groqApiKey, rubric);
-      } catch (evaluatorError) {
-        const errorMessage = evaluatorError instanceof Error ? evaluatorError.message : String(evaluatorError);
+        panelResults = await runPanelEvaluators(judgePacket, groqApiKey, rubric);
+      } catch (panelError) {
+        const errorMessage = panelError instanceof Error ? panelError.message : String(panelError);
         if (errorMessage.includes("quota") || errorMessage.includes("429") || errorMessage.includes("billing") || errorMessage.includes("rate limit exceeded")) {
           await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
           return new Response(
             JSON.stringify({
               error: "Groq API quota/rate limit exceeded",
               details: "All retry attempts exhausted. Your Groq API quota has been exceeded. Please check your billing or wait for the quota to reset.",
-              retryAfter: extractRetryAfter(evaluatorError),
+              retryAfter: extractRetryAfter(panelError),
             }),
             { status: 429, headers: { "Content-Type": "application/json" } }
           );
         }
-        throw evaluatorError;
+        throw panelError;
       }
 
+      if (panelResults.length === 0) {
+        await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
+        return new Response(
+          JSON.stringify({
+            error: "All panel evaluators failed",
+            details: "No GROQ model returned a valid scorecard. Please try again or check API availability.",
+          }),
+          { status: 500, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Optional verifier (checks primary evaluator for consistency)
+      const primaryScorecard = panelResults[0]!.scorecard;
       let groqVerifierJudgement: Scorecard | null = null;
       try {
         await sleep(500);
-
-        const verifierPromise = callGroqVerifier(judgePacket, groqEvaluatorJudgement, groqApiKey, rubric);
+        const verifierPromise = callGroqVerifier(judgePacket, primaryScorecard, groqApiKey, rubric);
         const verifierTimeout = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Groq verifier call timeout")), 25000); // 25 second timeout
+          setTimeout(() => reject(new Error("Groq verifier call timeout")), 25000);
         });
-
         groqVerifierJudgement = await Promise.race([verifierPromise, verifierTimeout]);
       } catch (verifierError) {
         console.warn("Groq verifier call failed or timed out, continuing without verification:", verifierError);
         groqVerifierJudgement = null;
       }
 
-      const finalScorecard = adjudicate(groqEvaluatorJudgement, groqVerifierJudgement, judgePacket);
-      const confidence = computeConfidence(groqEvaluatorJudgement, groqVerifierJudgement, finalScorecard);
+      const finalScorecard = adjudicateMulti(panelResults, groqVerifierJudgement, judgePacket);
+      const confidence = computeConfidenceMulti(panelResults, groqVerifierJudgement, finalScorecard);
 
       const evaluations = await dbQuery<{
         id: string;
@@ -391,6 +427,11 @@ serve(async (req) => {
       );
 
       const summary = finalScorecard.strengths.join("; ") + " | " + finalScorecard.weaknesses.join("; ");
+      const primaryGroqJudgement = panelResults[0]!.scorecard;
+      const multiModelPayload = {
+        panel: panelResults.map((r) => ({ model: r.model, scorecard: r.scorecard })),
+        verifier: groqVerifierJudgement ?? null,
+      };
 
       if (evaluations.length > 0) {
         await dbExecute(
@@ -405,8 +446,8 @@ serve(async (req) => {
             "updatedAt" = NOW()
            WHERE id = $8`,
           [
-            groqVerifierJudgement ? JSON.stringify(groqVerifierJudgement) : null,
-            JSON.stringify(groqEvaluatorJudgement),
+            JSON.stringify(multiModelPayload),
+            JSON.stringify(primaryGroqJudgement),
             JSON.stringify(finalScorecard),
             confidence,
             finalScorecard.overallScore,
@@ -423,8 +464,8 @@ serve(async (req) => {
             runId,
             run.projectId,
             run.testSuiteId,
-            groqVerifierJudgement ? JSON.stringify(groqVerifierJudgement) : null,
-            JSON.stringify(groqEvaluatorJudgement),
+            JSON.stringify(multiModelPayload),
+            JSON.stringify(primaryGroqJudgement),
             JSON.stringify(finalScorecard),
             confidence,
             finalScorecard.overallScore,
@@ -491,9 +532,14 @@ serve(async (req) => {
   }
 });
 
-async function callGroqEvaluator(
+/**
+ * Call a single GROQ model with the evaluator prompt.
+ * Used for both primary evaluator and panel models.
+ */
+async function callGroqEvaluatorWithModel(
   judgePacket: JudgePacket,
   apiKey: string,
+  modelId: string,
   rubric?: any
 ): Promise<Scorecard> {
   const prompt = buildGroqEvaluatorPrompt(judgePacket, rubric);
@@ -503,7 +549,7 @@ async function callGroqEvaluator(
 
   for (let attempt = 0; attempt < config.maxRetries; attempt++) {
     try {
-      await ensureRateLimit("groqEvaluator");
+      await ensureRateLimit("groqEvaluator", modelId);
 
       const requestBody: {
         model: string;
@@ -511,7 +557,7 @@ async function callGroqEvaluator(
         temperature: number;
         response_format?: { type: string };
       } = {
-        model: GROQ_MODELS.evaluator,
+        model: modelId,
         messages: [
           {
             role: "user",
@@ -522,7 +568,7 @@ async function callGroqEvaluator(
         response_format: { type: "json_object" },
       };
 
-      console.log(`Calling Groq evaluator with model: ${GROQ_MODELS.evaluator}`);
+      console.log(`Calling Groq evaluator with model: ${modelId}`);
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -618,6 +664,40 @@ async function callGroqEvaluator(
   );
 }
 
+/** Primary evaluator call (backward-compatible). */
+async function callGroqEvaluator(
+  judgePacket: JudgePacket,
+  apiKey: string,
+  rubric?: any
+): Promise<Scorecard> {
+  return callGroqEvaluatorWithModel(judgePacket, apiKey, GROQ_MODEL_PRIMARY, rubric);
+}
+
+/**
+ * Run the full panel of models and return successful scorecards with model id.
+ * Uses only free-plan models; spacing respects RPM (30/min for most).
+ * Failed models are skipped.
+ */
+async function runPanelEvaluators(
+  judgePacket: JudgePacket,
+  apiKey: string,
+  rubric?: any
+): Promise<Array<{ model: string; scorecard: Scorecard }>> {
+  const results: Array<{ model: string; scorecard: Scorecard }> = [];
+
+  for (const modelId of GROQ_PANEL_MODELS) {
+    try {
+      await sleep(MIN_DELAY_MS);
+      const scorecard = await callGroqEvaluatorWithModel(judgePacket, apiKey, modelId, rubric);
+      results.push({ model: modelId, scorecard });
+    } catch (err) {
+      console.warn(`Panel evaluator ${modelId} failed, skipping:`, err);
+    }
+  }
+
+  return results;
+}
+
 async function callGroqVerifier(
   judgePacket: JudgePacket,
   evaluatorScorecard: Scorecard,
@@ -639,7 +719,7 @@ async function callGroqVerifier(
         temperature: number;
         response_format?: { type: string };
       } = {
-        model: GROQ_MODELS.verifier,
+        model: GROQ_MODEL_VERIFIER,
         messages: [
           {
             role: "user",
@@ -650,7 +730,7 @@ async function callGroqVerifier(
         response_format: { type: "json_object" },
       };
 
-      console.log(`Calling Groq verifier with model: ${GROQ_MODELS.verifier}`);
+      console.log(`Calling Groq verifier with model: ${GROQ_MODEL_VERIFIER}`);
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -838,12 +918,12 @@ function buildRubricSection(rubric?: any): string {
 
   // Use custom rubric
   let rubricText = `## SCORING RUBRIC\n\n**Rubric:** ${rubric.name || "Custom Evaluation"}\n`;
-  
+
   rubric.dimensions.forEach((dim: any, idx: number) => {
     const weight = ((dim.weight || 0) * 100).toFixed(0);
     rubricText += `\n### ${idx + 1}. ${dim.name} (0-100, weight: ${weight}%)\n`;
     rubricText += `**Evaluate:** ${dim.description}\n\n`;
-    
+
     if (dim.scoringCriteria && Array.isArray(dim.scoringCriteria)) {
       rubricText += `**Scoring Guide:**\n`;
       dim.scoringCriteria.forEach((criteria: any) => {
@@ -853,7 +933,7 @@ function buildRubricSection(rubric?: any): string {
       });
     }
   });
-  
+
   return rubricText;
 }
 
@@ -990,7 +1070,7 @@ function buildGroqVerifierPrompt(
   rubric?: any
 ): string {
   const dimensionsSchema = buildDimensionsSchema(rubric);
-  
+
   return `You are a verification evaluator and quality assurance reviewer. Your job is to:
 1. Verify the primary evaluator's scorecard is accurate and well-supported
 2. Check that all evidenceEventIds actually exist in the judge_packet
@@ -1108,6 +1188,109 @@ function validateAndNormalizeScorecard(input: unknown): Scorecard {
     weaknesses,
     missingData,
   };
+}
+
+/**
+ * Combine multiple model scorecards into one (multi-model panel).
+ * Uses median for overall/dimension scores (robust to outliers), merges pros/cons.
+ */
+function adjudicateMulti(
+  panelResults: Array<{ model: string; scorecard: Scorecard }>,
+  verifierScorecard: Scorecard | null,
+  judgePacket: JudgePacket
+): Scorecard {
+  const allScorecards = [
+    ...panelResults.map((r) => r.scorecard),
+    ...(verifierScorecard ? [verifierScorecard] : []),
+  ];
+
+  if (allScorecards.length === 0) {
+    throw new Error("No scorecards to combine");
+  }
+  if (allScorecards.length === 1) {
+    return allScorecards[0];
+  }
+
+  const overallScores = allScorecards.map((s) => s.overallScore);
+  const overallScore = median(overallScores);
+  const scoreStd = stdDev(overallScores);
+  const confidence = Math.max(0.3, Math.min(1, 0.5 + 0.5 * (1 - Math.min(1, scoreStd / 25))));
+
+  const allDimKeys = new Set<string>();
+  for (const s of allScorecards) {
+    Object.keys(s.dimensions).forEach((k) => allDimKeys.add(k));
+  }
+
+  const dimensions: Record<string, {
+    score: number;
+    reasoning: string;
+    evidenceEventIds: string[];
+    strengths?: string[];
+    weaknesses?: string[];
+  }> = {};
+
+  for (const key of allDimKeys) {
+    const dimScores = allScorecards
+      .map((s) => s.dimensions[key]?.score)
+      .filter((n): n is number => typeof n === "number");
+    const scores = dimScores.length > 0 ? dimScores : [50];
+    const reasoningParts = allScorecards
+      .filter((s) => s.dimensions[key]?.reasoning)
+      .map((s) => s.dimensions[key].reasoning)
+      .slice(0, 2);
+    const evidenceIds = [...new Set(allScorecards.flatMap((s) => s.dimensions[key]?.evidenceEventIds ?? []))];
+    const strengths = dedupeStrings(allScorecards.flatMap((s) => s.dimensions[key]?.strengths ?? []));
+    const weaknesses = dedupeStrings(allScorecards.flatMap((s) => s.dimensions[key]?.weaknesses ?? []));
+
+    dimensions[key] = {
+      score: Math.round(median(scores)),
+      reasoning: reasoningParts.join(" ").slice(0, 800) || "Combined panel evaluation.",
+      evidenceEventIds: evidenceIds,
+      strengths: strengths.length > 0 ? strengths : undefined,
+      weaknesses: weaknesses.length > 0 ? weaknesses : undefined,
+    };
+  }
+
+  const strengths = dedupeStrings(allScorecards.flatMap((s) => s.strengths));
+  const weaknesses = dedupeStrings(allScorecards.flatMap((s) => s.weaknesses));
+  const missingData = [...new Set(allScorecards.flatMap((s) => s.missingData ?? []))];
+
+  return {
+    overallScore: Math.round(overallScore),
+    confidence,
+    dimensions,
+    strengths,
+    weaknesses,
+    missingData: missingData.length > 0 ? missingData : undefined,
+  };
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 50;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+function stdDev(values: number[]): number {
+  if (values.length < 2) return 0;
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const squareDiffs = values.map((v) => (v - avg) ** 2);
+  return Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / values.length);
+}
+
+function dedupeStrings(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of arr) {
+    const n = s.trim();
+    if (!n) continue;
+    const key = n.toLowerCase().slice(0, 120);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out.slice(0, 10);
 }
 
 function adjudicate(
@@ -1231,5 +1414,31 @@ function computeConfidence(
 
   // Increase confidence if both agree
   return Math.min(1.0, (evaluatorScorecard.confidence + verifierScorecard.confidence) / 2);
+}
+
+/** Confidence for multi-model panel: based on agreement and verifier if present. */
+function computeConfidenceMulti(
+  panelResults: Array<{ model: string; scorecard: Scorecard }>,
+  verifierScorecard: Scorecard | null,
+  finalScorecard: Scorecard
+): number {
+  let base = finalScorecard.confidence;
+  if (panelResults.length > 1) {
+    const scores = panelResults.map((r) => r.scorecard.overallScore);
+    const std = stdDev(scores);
+    base = Math.max(0.3, Math.min(1, 0.5 + 0.5 * (1 - Math.min(1, std / 25))));
+  }
+  if (verifierScorecard) {
+    const panelAvg = panelResults.length > 0
+      ? panelResults.reduce((s, r) => s + r.scorecard.overallScore, 0) / panelResults.length
+      : finalScorecard.overallScore;
+    const diff = Math.abs(panelAvg - verifierScorecard.overallScore);
+    if (diff > SCORE_DISAGREEMENT_THRESHOLD) {
+      base = Math.max(0.3, base * 0.75);
+    } else {
+      base = Math.min(1, base * 1.05);
+    }
+  }
+  return base;
 }
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import RunView from "@/app/components/runs/RunView";
+import RunView, { type Evaluation as RunViewEvaluation } from "@/app/components/runs/RunView";
 import type { MetricBreakdown, Evaluation } from "@/types/evaluation";
 
 export default async function RunPage(context: {
@@ -113,7 +113,7 @@ export default async function RunPage(context: {
       <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
 
       <div className="relative mx-auto max-w-5xl px-6 py-16">
-        <RunView initialRun={run} initialEvaluation={evaluation} />
+        <RunView initialRun={run} initialEvaluation={evaluation as RunViewEvaluation | null} />
       </div>
     </main>
   );

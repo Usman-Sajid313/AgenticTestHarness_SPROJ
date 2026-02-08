@@ -25,15 +25,21 @@ export default function RubricsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
-    // In a real app, you'd get this from context or auth
-    // For now, we'll use the first workspace the user has access to
     const fetchWorkspace = async () => {
-      const res = await fetch("/api/me");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.user?.memberships?.[0]) {
-          setWorkspaceId(data.user.memberships[0].workspaceId);
+      try {
+        const res = await fetch("/api/me");
+        if (res.ok) {
+          const data = await res.json();
+          const wsId =
+            data.workspaceId ??
+            data.user?.memberships?.[0]?.workspaceId ??
+            null;
+          setWorkspaceId(wsId);
         }
+      } catch {
+        // leave workspaceId null
+      } finally {
+        setLoading(false);
       }
     };
     fetchWorkspace();
@@ -48,7 +54,7 @@ export default function RubricsPage() {
         const res = await fetch(`/api/rubrics?workspaceId=${workspaceId}`);
         if (res.ok) {
           const data = await res.json();
-          setRubrics(data.rubrics);
+          setRubrics(data.rubrics ?? []);
         }
       } catch (error) {
         console.error("Error fetching rubrics:", error);
@@ -91,6 +97,17 @@ export default function RubricsPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
           <p className="text-white/60">Loading rubrics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!workspaceId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-white/80 mb-4">You are not in any workspace. Rubrics are scoped to a workspace.</p>
+          <Link href="/" className="text-purple-400 hover:text-purple-300 transition">← Back to Dashboard</Link>
         </div>
       </div>
     );

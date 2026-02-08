@@ -96,10 +96,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Extract and structure comparison data
+    // Extract and structure comparison data (derive metricBreakdown from finalScorecard when missing)
     const comparison = runs.map((run) => {
       const evaluation = run.evaluations[0] || null;
-      const metricBreakdown = evaluation?.metricBreakdown as
+      let metricBreakdown = evaluation?.metricBreakdown as
         | {
             overallComment?: string;
             dimensions?: Record<
@@ -113,6 +113,10 @@ export async function GET(req: Request) {
             >;
           }
         | null;
+
+      if (evaluation && (!metricBreakdown?.dimensions || Object.keys(metricBreakdown.dimensions || {}).length === 0) && evaluation.finalScorecard) {
+        metricBreakdown = deriveMetricBreakdownFromScorecard(evaluation);
+      }
 
       return {
         id: run.id,
@@ -167,6 +171,49 @@ export async function GET(req: Request) {
       },
       { status: 500 }
     );
+  }
+}
+
+function deriveMetricBreakdownFromScorecard(evaluation: {
+  summary: string | null;
+  finalScorecard: unknown;
+}): {
+  overallComment: string;
+  dimensions: Record<string, { score: number; summary?: string; strengths?: string; weaknesses?: string }>;
+} {
+  try {
+    const scorecard = typeof evaluation.finalScorecard === "string"
+      ? JSON.parse(evaluation.finalScorecard)
+      : evaluation.finalScorecard as {
+          overallScore: number;
+          dimensions?: Record<string, {
+            score: number;
+            reasoning: string;
+            strengths?: string[];
+            weaknesses?: string[];
+          }>;
+          strengths?: string[];
+          weaknesses?: string[];
+        };
+    const dimensions: Record<string, { score: number; summary?: string; strengths?: string; weaknesses?: string }> = {};
+    for (const [key, dim] of Object.entries(scorecard.dimensions || {})) {
+      const d = dim as { score: number; reasoning: string; strengths?: string[]; weaknesses?: string[] };
+      dimensions[key] = {
+        score: d.score,
+        summary: d.reasoning,
+        strengths: d.strengths?.length ? d.strengths.join("; ") : undefined,
+        weaknesses: d.weaknesses?.length ? d.weaknesses.join("; ") : undefined,
+      };
+    }
+    return {
+      overallComment: evaluation.summary ||
+        `Score: ${scorecard.overallScore}/100. ` +
+        (scorecard.strengths?.length ? `Strengths: ${scorecard.strengths.join("; ")}. ` : "") +
+        (scorecard.weaknesses?.length ? `Areas for improvement: ${scorecard.weaknesses.join("; ")}.` : ""),
+      dimensions,
+    };
+  } catch {
+    return { overallComment: "", dimensions: {} };
   }
 }
 

@@ -65,6 +65,7 @@ function ComparePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ids = searchParams.get("ids");
+  const projectId = searchParams.get("projectId");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +123,9 @@ function ComparePageContent() {
       setError("At least 2 runs are required for comparison");
       return;
     }
-    router.push(`/compare?ids=${runIds.join(",")}`);
+    const query = new URLSearchParams({ ids: runIds.join(",") });
+    if (projectId) query.set("projectId", projectId);
+    router.push(`/compare?${query.toString()}`);
   };
 
   const handleExportJSON = () => {
@@ -146,12 +149,21 @@ function ComparePageContent() {
       <div className="relative mx-auto max-w-7xl px-6 py-12">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Link
-              href="/projects"
-              className="text-sm text-purple-300 hover:text-purple-200 mb-2 inline-block"
-            >
-              ← Back to Projects
-            </Link>
+            {projectId ? (
+              <Link
+                href={`/projects/${projectId}`}
+                className="text-sm text-purple-300 hover:text-purple-200 mb-2 inline-block"
+              >
+                ← Back to Project
+              </Link>
+            ) : (
+              <Link
+                href="/projects"
+                className="text-sm text-purple-300 hover:text-purple-200 mb-2 inline-block"
+              >
+                ← Back to Projects
+              </Link>
+            )}
             <h1 className="text-3xl font-semibold text-white">
               Run Comparison
             </h1>

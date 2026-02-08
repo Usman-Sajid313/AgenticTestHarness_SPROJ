@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+html {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
 @keyframes flow-vertical {
   0% { background-position: 50% 0%; }
   50% { background-position: 50% 100%; }
