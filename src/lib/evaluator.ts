@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { supabaseServerClient } from "@/lib/supabase";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API!;
@@ -33,6 +33,8 @@ type MaybeGeminiJSON =
 
 
 export async function evaluateRunFromLogfile(runId: string) {
+  const supabaseServerClient = getSupabaseServerClient();
+
   const run = await prisma.agentRun.findUnique({
     where: { id: runId },
     include: { logfiles: true, project: true, testSuite: true },
