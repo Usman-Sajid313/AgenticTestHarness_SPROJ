@@ -169,6 +169,9 @@ interface JudgePacket {
     patternsMatched: string[];
     redactedCount: number;
   };
+  trace?: Array<{ id: string; type: string; data: Record<string, unknown>; timestamp?: string }>;
+  retries?: Array<{ attempt: number; eventIds: string[]; timestamp?: string }>;
+  finalOutput?: { text: string; eventIds: string[] };
 }
 
 interface Scorecard {
@@ -268,6 +271,8 @@ serve(async (req) => {
       }
     };
 
+    console.log("[judge_run] Starting for runId=", runId);
+
     try {
       const runs = await dbQuery<{
         id: string;
@@ -350,8 +355,75 @@ serve(async (req) => {
       }
 
       const judgePacketData = packets[0];
+      console.log("[judge_run] Packet loaded: size=", judgePacketData.packetSizeBytes, "bytes, parserVersion=", judgePacketData.parserVersion);
 
-      const judgePacket: JudgePacket = JSON.parse(judgePacketData.packet);
+      let judgePacket: JudgePacket;
+      try {
+        judgePacket = JSON.parse(judgePacketData.packet) as JudgePacket;
+      } catch (parseErr) {
+        console.error("[judge_run] Invalid judge packet JSON:", parseErr);
+        await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
+        return new Response(
+          JSON.stringify({
+            error: "Invalid judge packet",
+            details: "Stored packet is not valid JSON. Re-parse the run to regenerate the packet.",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Normalize packet shape so parser output from any adapter is safe to use
+      if (!judgePacket.task || typeof judgePacket.task !== "object") {
+        judgePacket.task = { text: "Task not found", confidence: 0, sourceEventIds: [] };
+      }
+      if (!judgePacket.meta?.logQuality) {
+        judgePacket.meta = {
+          logQuality: {
+            totalEvents: 0,
+            totalSteps: 0,
+            format: "unknown",
+            encoding: "utf-8",
+            parserVersion: "",
+          },
+        };
+      }
+      if (!judgePacket.metrics || typeof judgePacket.metrics !== "object") {
+        judgePacket.metrics = { totalToolCalls: 0, totalErrors: 0, totalRetries: 0 };
+      }
+      if (!Array.isArray(judgePacket.ruleFlags)) {
+        judgePacket.ruleFlags = [];
+      }
+      if (!Array.isArray(judgePacket.toolInteractions)) {
+        judgePacket.toolInteractions = [];
+      }
+      if (!judgePacket.traceSummary?.steps) {
+        judgePacket.traceSummary = { steps: [] };
+      }
+      if (!Array.isArray(judgePacket.errors)) {
+        judgePacket.errors = [];
+      }
+      if (!judgePacket.redactionReport || typeof judgePacket.redactionReport !== "object") {
+        judgePacket.redactionReport = { patternsMatched: [], redactedCount: 0 };
+      }
+      if (!Array.isArray(judgePacket.retries)) {
+        judgePacket.retries = [];
+      }
+      if (!judgePacket.finalOutput || typeof judgePacket.finalOutput !== "object") {
+        judgePacket.finalOutput = undefined;
+      }
+      if (!Array.isArray(judgePacket.trace)) {
+        judgePacket.trace = [];
+      }
+
+      const packetSummary = {
+        totalEvents: judgePacket.meta?.logQuality?.totalEvents ?? 0,
+        totalSteps: judgePacket.meta?.logQuality?.totalSteps ?? 0,
+        traceLength: judgePacket.trace?.length ?? 0,
+        toolInteractions: judgePacket.toolInteractions?.length ?? 0,
+        errors: judgePacket.errors?.length ?? 0,
+        taskText: judgePacket.task?.text?.slice(0, 80) + (judgePacket.task?.text && judgePacket.task.text.length > 80 ? "..." : ""),
+      };
+      console.log("[judge_run] Judge packet summary:", JSON.stringify(packetSummary));
 
       if (run.status !== "JUDGING") {
         await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["JUDGING", runId]);
@@ -370,11 +442,16 @@ serve(async (req) => {
       }
 
       // Run multi-model panel (all free GROQ models)
+      const packetSizeForPrompt = new TextEncoder().encode(JSON.stringify(judgePacket)).length;
+      console.log("[judge_run] Running panel: models=", GROQ_PANEL_MODELS.length, "packetSize=", packetSizeForPrompt, "bytes");
+
       let panelResults: Array<{ model: string; scorecard: Scorecard }>;
       try {
         panelResults = await runPanelEvaluators(judgePacket, groqApiKey, rubric);
+        console.log("[judge_run] Panel complete: succeeded=", panelResults.length, "/", GROQ_PANEL_MODELS.length);
       } catch (panelError) {
         const errorMessage = panelError instanceof Error ? panelError.message : String(panelError);
+        console.error("[judge_run] Panel failed:", errorMessage);
         if (errorMessage.includes("quota") || errorMessage.includes("429") || errorMessage.includes("billing") || errorMessage.includes("rate limit exceeded")) {
           await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
           return new Response(
@@ -390,6 +467,7 @@ serve(async (req) => {
       }
 
       if (panelResults.length === 0) {
+        console.error("[judge_run] All panel models failed: count=", GROQ_PANEL_MODELS.length);
         await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
         return new Response(
           JSON.stringify({
@@ -399,6 +477,8 @@ serve(async (req) => {
           { status: 500, headers: { "Content-Type": "application/json" } }
         );
       }
+
+      console.log("[judge_run] Primary model:", panelResults[0]!.model, "score=", panelResults[0]!.scorecard.overallScore);
 
       // Optional verifier (checks primary evaluator for consistency)
       const primaryScorecard = panelResults[0]!.scorecard;
@@ -411,11 +491,12 @@ serve(async (req) => {
         });
         groqVerifierJudgement = await Promise.race([verifierPromise, verifierTimeout]);
       } catch (verifierError) {
-        console.warn("Groq verifier call failed or timed out, continuing without verification:", verifierError);
+        console.warn("[judge_run] Verifier failed, continuing without verification:", verifierError);
         groqVerifierJudgement = null;
       }
 
       const finalScorecard = adjudicateMulti(panelResults, groqVerifierJudgement, judgePacket);
+      console.log("[judge_run] Adjudication complete: finalScore=", finalScorecard.overallScore);
       const confidence = computeConfidenceMulti(panelResults, groqVerifierJudgement, finalScorecard);
 
       const evaluations = await dbQuery<{
@@ -481,6 +562,8 @@ serve(async (req) => {
         [finalStatus, runId]
       );
 
+      console.log("[judge_run] Success: runId=", runId, "status=", finalStatus, "score=", finalScorecard.overallScore);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -492,7 +575,7 @@ serve(async (req) => {
         { headers: { "Content-Type": "application/json" } }
       );
     } catch (dbError) {
-      console.error("Database error:", dbError);
+      console.error("[judge_run] Database error:", dbError);
       try {
         await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
       } catch {
@@ -508,7 +591,7 @@ serve(async (req) => {
     }
     await pool.end();
   } catch (error) {
-    console.error("Judge error:", error);
+    console.error("[judge_run] Judge error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     if (errorMessage.includes("timeout") || errorMessage.includes("WORKER_LIMIT")) {
@@ -589,12 +672,11 @@ async function callGroqEvaluatorWithModel(
 
         if (response.status === 429) {
           const retryAfter = response.headers.get("retry-after");
-          const delay = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : calculateBackoffDelay(attempt, config);
+          const rawDelay = retryAfter ? parseInt(retryAfter, 10) * 1000 : calculateBackoffDelay(attempt, config);
+          const delay = Math.min(rawDelay, config.maxDelayMs);
 
           if (attempt < config.maxRetries - 1) {
-            console.log(`Groq evaluator rate limit hit, retrying after ${delay}ms...`);
+            console.log(`Groq evaluator rate limit hit, retrying after ${delay}ms (capped from ${rawDelay}ms)...`);
             await sleep(delay);
             continue;
           } else {
@@ -632,10 +714,11 @@ async function callGroqEvaluatorWithModel(
 
       if (isRateLimitError(error) || (error instanceof Error && error.message.includes("429"))) {
         const retryAfter = extractRetryAfter(error);
-        const delay = retryAfter || calculateBackoffDelay(attempt, config);
+        const rawDelay = retryAfter || calculateBackoffDelay(attempt, config);
+        const delay = Math.min(rawDelay, config.maxDelayMs);
 
         if (attempt < config.maxRetries - 1) {
-          console.log(`Rate limit hit, retrying after ${delay}ms...`);
+          console.log(`Rate limit hit, retrying after ${delay}ms (capped from ${rawDelay}ms)...`);
           await sleep(delay);
           continue;
         } else {
@@ -690,8 +773,10 @@ async function runPanelEvaluators(
       await sleep(MIN_DELAY_MS);
       const scorecard = await callGroqEvaluatorWithModel(judgePacket, apiKey, modelId, rubric);
       results.push({ model: modelId, scorecard });
+      console.log("[judge_run] Panel:", modelId, "succeeded");
     } catch (err) {
-      console.warn(`Panel evaluator ${modelId} failed, skipping:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[judge_run] Panel:", modelId, "failed:", msg);
     }
   }
 
@@ -751,12 +836,11 @@ async function callGroqVerifier(
 
         if (response.status === 429) {
           const retryAfter = response.headers.get("retry-after");
-          const delay = retryAfter
-            ? parseInt(retryAfter) * 1000
-            : calculateBackoffDelay(attempt, config);
+          const rawDelay = retryAfter ? parseInt(retryAfter, 10) * 1000 : calculateBackoffDelay(attempt, config);
+          const delay = Math.min(rawDelay, config.maxDelayMs);
 
           if (attempt < config.maxRetries - 1) {
-            console.log(`Groq verifier rate limit hit, retrying after ${delay}ms...`);
+            console.log(`Groq verifier rate limit hit, retrying after ${delay}ms (capped from ${rawDelay}ms)...`);
             await sleep(delay);
             continue;
           } else {
@@ -794,10 +878,11 @@ async function callGroqVerifier(
 
       if (isRateLimitError(error) || (error instanceof Error && error.message.includes("429"))) {
         const retryAfter = extractRetryAfter(error);
-        const delay = retryAfter || calculateBackoffDelay(attempt, config);
+        const rawDelay = retryAfter || calculateBackoffDelay(attempt, config);
+        const delay = Math.min(rawDelay, config.maxDelayMs);
 
         if (attempt < config.maxRetries - 1) {
-          console.log(`Rate limit hit, retrying after ${delay}ms...`);
+          console.log(`Rate limit hit, retrying after ${delay}ms (capped from ${rawDelay}ms)...`);
           await sleep(delay);
           continue;
         } else {
@@ -1368,7 +1453,7 @@ function adjudicate(
     };
   } else {
     // Significant disagreement - prefer deterministic flags
-    const deterministicFlags = judgePacket.ruleFlags.filter(
+    const deterministicFlags = (judgePacket.ruleFlags || []).filter(
       (f) => f.severity === "high" && f.flagType !== "orphan_tool_result"
     );
 

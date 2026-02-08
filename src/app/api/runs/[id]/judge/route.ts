@@ -79,6 +79,8 @@ export async function POST(
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+    console.log("[judge API] Invoking edge function for runId=", id);
+
     const response = await fetch(`${supabaseUrl}/functions/v1/judge_run`, {
       method: "POST",
       headers: {
@@ -90,6 +92,7 @@ export async function POST(
     });
 
     const responseText = await response.text();
+    console.log("[judge API] Edge function response: status=", response.status, "body=", responseText?.slice(0, 500) + (responseText?.length > 500 ? "..." : ""));
     let data;
     try {
       data = JSON.parse(responseText);
@@ -99,6 +102,7 @@ export async function POST(
 
     if (!response.ok) {
       const errorText = responseText || JSON.stringify(data);
+      console.error("[judge API] Judge failed: status=", response.status, "error=", errorText);
       const isRetryable =
         response.status >= 500 ||
         response.status === 429 ||
@@ -135,7 +139,7 @@ export async function POST(
       data,
     });
   } catch (err) {
-    console.error("Failed to invoke judge function:", err);
+    console.error("[judge API] Failed to invoke judge function:", err);
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     const isQuotaError = errorMessage.includes("429") ||

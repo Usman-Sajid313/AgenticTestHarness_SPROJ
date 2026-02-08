@@ -6,6 +6,8 @@ const PARSER_VERSION = "1.1.0";
 const MAX_PACKET_SIZE_BYTES = 500000;
 const MAX_TOOL_INTERACTIONS = 50;
 const MAX_STORED_EVENTS = 5000;
+const MAX_TRACE_EVENTS_IN_PACKET = 200;
+const MAX_EVENT_DATA_CHARS = 400;
 
 interface DenoRequest {
   runId: string;
@@ -127,6 +129,7 @@ interface JudgePacket {
     patternsMatched: string[];
     redactedCount: number;
   };
+  trace?: Array<{ id: string; type: string; data: Record<string, unknown>; timestamp?: string }>;
 }
 
 serve(async (req) => {
@@ -217,7 +220,7 @@ serve(async (req) => {
       },
     });
 
-    console.log("Querying run:", runId);
+    console.log("[parse_run] Starting for runId=", runId);
 
     // Helper function for database queries
     const dbQuery = async <T>(query: string, params?: unknown[]): Promise<T[]> => {
@@ -379,26 +382,33 @@ serve(async (req) => {
     // Normalize encoding and newlines
     const rawText = await fileData.text();
     const normalizedText = normalizeText(rawText);
+    console.log("[parse_run] Logfile loaded: rawLength=", rawText.length, "normalizedLength=", normalizedText.length);
 
     // Parse with adapter-based ingestion pipeline
     const adapterResult = parseWithAdapters(normalizedText, parseContext);
     const events = adapterResult.events;
     const format = adapterResult.strictReport.detectedFormat;
+    const eventTypes = events.reduce((acc, e) => { acc[e.type] = (acc[e.type] || 0) + 1; return acc; }, {} as Record<string, number>);
+    console.log("[parse_run] Parsed: adapter=", adapterResult.strictReport.adapterUsed, "format=", format, "events=", events.length, "confidence=", adapterResult.strictReport.confidence, "eventTypes=", JSON.stringify(eventTypes));
 
     // Link tool calls to results
     const toolInteractions = linkToolCalls(events);
+    console.log("[parse_run] Tool interactions: ", toolInteractions.length);
 
     // Segment steps
     const steps = segmentSteps(events);
+    console.log("[parse_run] Steps: ", steps.length);
 
     // Extract task candidate
     const task = extractTask(events);
+    console.log("[parse_run] Task: text=", task.text?.slice(0, 100) + (task.text?.length > 100 ? "..." : ""), "confidence=", task.confidence);
 
     // Compute metrics
     const metrics = computeMetrics(events, toolInteractions);
 
     // Compute rule flags
     const ruleFlags = computeRuleFlags(events, toolInteractions);
+    console.log("[parse_run] Rule flags: ", ruleFlags.length);
 
     // Redact secrets
     const { redactedEvents, redactionReport } = redactSecrets(events);
@@ -419,6 +429,7 @@ serve(async (req) => {
     // Store results in database
     const packetJson = JSON.stringify(judgePacket);
     const packetSizeBytes = new TextEncoder().encode(packetJson).length;
+    console.log("[parse_run] Judge packet built: size=", packetSizeBytes, "traceEvents=", judgePacket.trace?.length ?? 0, "toolInteractions=", judgePacket.toolInteractions.length, "steps=", judgePacket.traceSummary.steps.length);
 
       // Persist normalized events (Phase 1 dual-write): keep trace summary and write row-level events.
       await dbExecute('DELETE FROM "RunEvent" WHERE "runId" = $1', [runId]);
@@ -546,6 +557,8 @@ serve(async (req) => {
       // Update run status
       await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["READY_FOR_JUDGING", runId]);
 
+      console.log("[parse_run] Success: runId=", runId, "status=READY_FOR_JUDGING");
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -564,7 +577,7 @@ serve(async (req) => {
         }
       );
     } catch (dbError) {
-      console.error("Database error:", dbError);
+      console.error("[parse_run] Database error:", dbError);
       try {
         await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
         if (resolvedIngestionId) {
@@ -597,7 +610,7 @@ serve(async (req) => {
     }
     await pool.end();
   } catch (error) {
-    console.error("Parse error:", error);
+    console.error("[parse_run] Parse error:", error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Unknown error",
@@ -896,6 +909,7 @@ function toParsedEvent(
   const id = asString(readPath(raw, idPath)) || `event_${sequence}`;
   const type =
     asString(readPath(raw, typePath)) ||
+    asString((raw as Record<string, unknown>).event) ||
     asString((raw as Record<string, unknown>).event_type) ||
     "unknown";
   const timestamp =
@@ -954,22 +968,37 @@ function linkToolCalls(events: ParsedEvent[]): ToolInteraction[] {
   const interactions: ToolInteraction[] = [];
   const toolCallMap = new Map<string, ParsedEvent>();
   const toolResultMap = new Map<string, ParsedEvent>();
+  const orderedStarts: ParsedEvent[] = [];
+  const orderedEnds: ParsedEvent[] = [];
 
-  // First pass: identify tool calls and results
+  // First pass: identify tool calls and results (standard: tool_call / tool_result; LangChain-style: tool_start / tool_end)
   for (const event of events) {
     const type = event.type.toLowerCase();
-    if (type.includes("tool") && type.includes("call")) {
+    const isCall = (type.includes("tool") && type.includes("call")) || (type.includes("tool") && type.includes("start"));
+    const isResult = (type.includes("tool") && type.includes("result")) || (type.includes("tool") && type.includes("end"));
+    if (isCall) {
       const toolCallId = extractToolCallId(event);
       if (toolCallId) {
         toolCallMap.set(toolCallId, event);
+      } else {
+        orderedStarts.push(event);
       }
     }
-    if (type.includes("tool") && type.includes("result")) {
+    if (isResult) {
       const toolCallId = extractToolCallId(event);
       if (toolCallId) {
         toolResultMap.set(toolCallId, event);
+      } else {
+        orderedEnds.push(event);
       }
     }
+  }
+
+  // Pair LangChain-style tool_start/tool_end by order (first start with first end, etc.)
+  for (let i = 0; i < Math.min(orderedStarts.length, orderedEnds.length); i++) {
+    const key = `ord_${i}`;
+    toolCallMap.set(key, orderedStarts[i]!);
+    toolResultMap.set(key, orderedEnds[i]!);
   }
 
   // Second pass: link calls to results
@@ -995,7 +1024,7 @@ function linkToolCalls(events: ParsedEvent[]): ToolInteraction[] {
     }
 
     interactions.push({
-      toolCallId,
+      toolCallId: String(toolCallId),
       toolName,
       args,
       argsRaw,
@@ -1003,8 +1032,8 @@ function linkToolCalls(events: ParsedEvent[]): ToolInteraction[] {
       resultSummary,
       status,
       eventIds: resultEvent
-        ? [callEvent.id, resultEvent.id]
-        : [callEvent.id],
+        ? [String(callEvent.id), String(resultEvent.id)]
+        : [String(callEvent.id)],
       timestamp: callEvent.timestamp,
     });
   }
@@ -1013,11 +1042,11 @@ function linkToolCalls(events: ParsedEvent[]): ToolInteraction[] {
   for (const [toolCallId, resultEvent] of toolResultMap.entries()) {
     if (!toolCallMap.has(toolCallId)) {
       interactions.push({
-        toolCallId,
+        toolCallId: String(toolCallId),
         toolName: "unknown",
         args: {},
         status: "missing",
-        eventIds: [resultEvent.id],
+        eventIds: [String(resultEvent.id)],
         timestamp: resultEvent.timestamp,
       });
     }
@@ -1027,30 +1056,29 @@ function linkToolCalls(events: ParsedEvent[]): ToolInteraction[] {
 }
 
 function extractToolCallId(event: ParsedEvent): string | null {
-  return (
-    event.data.tool_call_id ||
-    event.data.toolCallId ||
-    event.data.id ||
-    null
-  );
+  const val =
+    event.data.tool_call_id ??
+    event.data.toolCallId ??
+    event.data.id ??
+    null;
+  return val != null ? String(val) : null;
 }
 
 function extractToolName(event: ParsedEvent): string {
-  return (
-    event.data.tool_name ||
-    event.data.toolName ||
-    event.data.name ||
-    "unknown"
-  );
+  const val =
+    event.data.tool_name ??
+    event.data.toolName ??
+    event.data.name;
+  return typeof val === "string" ? val : "unknown";
 }
 
 function extractToolArgs(event: ParsedEvent): Record<string, unknown> {
-  return (
-    event.data.args ||
-    event.data.arguments ||
-    event.data.input ||
-    {}
-  );
+  const val =
+    event.data.args ??
+    event.data.arguments ??
+    event.data.input ??
+    event.data.tool_input;
+  return isObject(val) ? val : {};
 }
 
 function summarizeResult(result: unknown): string {
@@ -1153,14 +1181,9 @@ function extractTask(events: ParsedEvent[]): {
 
 function extractTaskText(event: ParsedEvent): string | null {
   const data = event.data;
-  return (
-    data.task ||
-    data.task_text ||
-    data.text ||
-    data.content ||
-    data.message ||
-    null
-  );
+  const val =
+    data.task ?? data.task_text ?? data.text ?? data.content ?? data.message;
+  return typeof val === "string" ? val : null;
 }
 
 function computeMetrics(
@@ -1356,7 +1379,7 @@ function buildJudgePacket(
     .filter((e) => e.type.toLowerCase().includes("error"))
     .map((e) => ({
       message: JSON.stringify(e.data).slice(0, 500),
-      eventIds: [e.id],
+      eventIds: [String(e.id)],
       timestamp: e.timestamp,
     }));
 
@@ -1369,7 +1392,7 @@ function buildJudgePacket(
     if (attempt > 1) {
       retries.push({
         attempt,
-        eventIds: interaction.eventIds,
+        eventIds: interaction.eventIds.map((id) => String(id)),
         timestamp: interaction.timestamp,
       });
     }
@@ -1383,9 +1406,24 @@ function buildJudgePacket(
     finalEvents.length > 0
       ? {
           text: JSON.stringify(finalEvents[finalEvents.length - 1].data).slice(0, 1000),
-          eventIds: [finalEvents[finalEvents.length - 1].id],
+          eventIds: [String(finalEvents[finalEvents.length - 1].id)],
         }
       : undefined;
+
+  // Build trace for judge: events with truncated data so LLM has full context
+  const trace = redactedEvents.slice(0, MAX_TRACE_EVENTS_IN_PACKET).map((e) => {
+    const dataStr = JSON.stringify(e.data);
+    const truncatedData =
+      dataStr.length > MAX_EVENT_DATA_CHARS
+        ? { _truncated: true, _preview: dataStr.slice(0, MAX_EVENT_DATA_CHARS) + "..." }
+        : e.data;
+    return {
+      id: String(e.id),
+      type: e.type,
+      data: isObject(truncatedData) ? truncatedData : { value: truncatedData },
+      timestamp: e.timestamp,
+    };
+  });
 
   const packet: JudgePacket = {
     meta: {
@@ -1401,6 +1439,7 @@ function buildJudgePacket(
     traceSummary: {
       steps: steps.slice(0, 100), // Limit steps
     },
+    trace,
     toolInteractions: topInteractions,
     errors: errors.slice(0, 20), // Limit errors
     retries: retries.slice(0, 10), // Limit retries
@@ -1410,7 +1449,7 @@ function buildJudgePacket(
       flagType: f.flagType,
       severity: f.severity as "low" | "medium" | "high",
       message: f.message,
-      evidenceEventIds: f.evidenceEventIds,
+      evidenceEventIds: f.evidenceEventIds.map((id) => String(id)),
     })),
     redactionReport,
   };
@@ -1420,21 +1459,25 @@ function buildJudgePacket(
   let packetSizeBytes = new TextEncoder().encode(packetJson).length;
 
   if (packetSizeBytes > MAX_PACKET_SIZE_BYTES) {
-    // Truncate tool interactions further
     const targetSize = MAX_PACKET_SIZE_BYTES * 0.9; // 90% of max
+    // First truncate trace if present
+    while (packetSizeBytes > targetSize && packet.trace && packet.trace.length > 20) {
+      packet.trace.pop();
+      packetJson = JSON.stringify(packet);
+      packetSizeBytes = new TextEncoder().encode(packetJson).length;
+    }
+    // Then truncate tool interactions
     while (packetSizeBytes > targetSize && packet.toolInteractions.length > 10) {
       packet.toolInteractions.pop();
       packetJson = JSON.stringify(packet);
       packetSizeBytes = new TextEncoder().encode(packetJson).length;
     }
-
     // Truncate result summaries
     for (const interaction of packet.toolInteractions) {
       if (interaction.resultSummary && interaction.resultSummary.length > 100) {
         interaction.resultSummary = interaction.resultSummary.slice(0, 100) + "...";
       }
     }
-
     packetJson = JSON.stringify(packet);
     packetSizeBytes = new TextEncoder().encode(packetJson).length;
   }
