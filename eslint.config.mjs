@@ -10,7 +10,17 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // ← Add this block as the FIRST entry → global ignore
+  {
+    ignores: [
+      "supabase/functions/**",      // ignore entire supabase/functions folder recursively
+      "supabase/functions/**/*",    // optional extra coverage
+    ],
+  },
+
+  // Your existing Next.js + TypeScript config
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+
   {
     ignores: [
       "node_modules/**",
