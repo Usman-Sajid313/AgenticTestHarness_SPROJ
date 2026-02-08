@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
@@ -7,6 +8,17 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  let body: {
+    sourceType?: string;
+    formatHint?: string;
+    mappingConfig?: Record<string, unknown> | null;
+  } = {};
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    // Keep defaults for empty body
+  }
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,9 +49,29 @@ export async function POST(
     );
   }
 
+  const ingestion = await prisma.runIngestion.create({
+    data: {
+      runId: run.id,
+      projectId: run.projectId,
+      sourceType: body.sourceType || "generic_jsonl",
+      formatHint: body.formatHint || null,
+      mappingConfig:
+        (body.mappingConfig as Prisma.InputJsonValue | undefined) || undefined,
+      fileRef: run.logfiles[0].storageKey,
+      status: "CREATED",
+    },
+  });
+
   // Validate budget before calling edge function
   const budgetValidation = await validateParseBudget(id);
   if (!budgetValidation.allowed) {
+    await prisma.runIngestion.update({
+      where: { id: ingestion.id },
+      data: {
+        status: "FAILED",
+        failureDetails: budgetValidation.reason,
+      },
+    });
     console.warn(`Parse budget validation failed for run ${id}:`, budgetValidation.reason);
     return NextResponse.json(
       {
@@ -71,7 +103,13 @@ export async function POST(
         Authorization: `Bearer ${serviceKey}`,
         "apikey": serviceKey,
       },
-      body: JSON.stringify({ runId: id }),
+      body: JSON.stringify({
+        runId: id,
+        ingestionId: ingestion.id,
+        sourceType: body.sourceType || "generic_jsonl",
+        formatHint: body.formatHint || null,
+        mappingConfig: body.mappingConfig || null,
+      }),
     });
 
     const responseText = await response.text();
@@ -89,6 +127,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       runId: id,
+      ingestionId: ingestion.id,
       status: "PARSING",
       data,
     });
@@ -97,6 +136,13 @@ export async function POST(
     await prisma.agentRun.update({
       where: { id },
       data: { status: "FAILED" },
+    });
+    await prisma.runIngestion.update({
+      where: { id: ingestion.id },
+      data: {
+        status: "FAILED",
+        failureDetails: err instanceof Error ? err.message : String(err),
+      },
     });
     return NextResponse.json(
       {

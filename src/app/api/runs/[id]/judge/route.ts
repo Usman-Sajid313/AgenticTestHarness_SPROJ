@@ -30,6 +30,14 @@ export async function POST(
     );
   }
 
+  // If already judging, avoid duplicate expensive invocations.
+  if (run.status === "JUDGING") {
+    return NextResponse.json(
+      { success: true, runId: id, status: "JUDGING", message: "Judge already in progress" },
+      { status: 202 }
+    );
+  }
+
   // Validate budget before calling edge function
   const budgetValidation = await validateJudgeBudget(id);
   if (!budgetValidation.allowed) {
@@ -55,6 +63,19 @@ export async function POST(
 
   // Call Supabase Edge Function
   try {
+    // Acquire judge lock: only one caller should transition READY_FOR_JUDGING -> JUDGING.
+    const locked = await prisma.agentRun.updateMany({
+      where: { id, status: "READY_FOR_JUDGING" },
+      data: { status: "JUDGING" },
+    });
+
+    if (locked.count === 0) {
+      return NextResponse.json(
+        { success: true, runId: id, status: "JUDGING", message: "Judge already started elsewhere" },
+        { status: 202 }
+      );
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -77,7 +98,34 @@ export async function POST(
     }
 
     if (!response.ok) {
-      throw new Error(`Function returned ${response.status}: ${responseText}`);
+      const errorText = responseText || JSON.stringify(data);
+      const isRetryable =
+        response.status >= 500 ||
+        response.status === 429 ||
+        errorText.includes("WORKER_LIMIT") ||
+        errorText.includes("timeout") ||
+        errorText.includes("rate limit");
+
+      if (isRetryable) {
+        await prisma.agentRun.updateMany({
+          where: { id, status: "JUDGING" },
+          data: { status: "READY_FOR_JUDGING" },
+        });
+      } else {
+        await prisma.agentRun.updateMany({
+          where: { id, status: "JUDGING" },
+          data: { status: "FAILED" },
+        });
+      }
+
+      return NextResponse.json(
+        {
+          error: "Judge function failed",
+          details: `Function returned ${response.status}: ${errorText}`,
+          retryable: isRetryable,
+        },
+        { status: isRetryable ? 503 : 500 }
+      );
     }
 
     return NextResponse.json({
@@ -93,20 +141,30 @@ export async function POST(
     const isQuotaError = errorMessage.includes("429") ||
                          errorMessage.includes("quota") ||
                          errorMessage.includes("rate limit");
+    const isWorkerLimit = errorMessage.includes("WORKER_LIMIT") ||
+                          errorMessage.includes("546") ||
+                          errorMessage.includes("timeout") ||
+                          errorMessage.includes("504");
 
-    if (!isQuotaError) {
-      await prisma.agentRun.update({
-        where: { id },
+    if (isQuotaError || isWorkerLimit) {
+      await prisma.agentRun.updateMany({
+        where: { id, status: "JUDGING" },
+        data: { status: "READY_FOR_JUDGING" },
+      });
+    } else {
+      await prisma.agentRun.updateMany({
+        where: { id, status: "JUDGING" },
         data: { status: "FAILED" },
       });
     }
 
-    const statusCode = errorMessage.includes("429") ? 429 : 500;
+    const statusCode = isQuotaError ? 429 : isWorkerLimit ? 503 : 500;
 
     return NextResponse.json(
       {
         error: "Failed to trigger judging",
-        details: errorMessage
+        details: errorMessage,
+        retryable: isQuotaError || isWorkerLimit,
       },
       { status: statusCode }
     );

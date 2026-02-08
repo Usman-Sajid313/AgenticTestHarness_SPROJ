@@ -51,6 +51,13 @@ enum EvaluationStatus {
   FAILED
 }
 
+enum IngestionStatus {
+  CREATED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -171,6 +178,7 @@ model Project {
   runs        AgentRun[]
   evaluations RunEvaluation[]
   logfiles    RunLogfile[]
+  ingestions  RunIngestion[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -312,6 +320,7 @@ model AgentRun {
   triggeredBy User?             @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
 
   logfiles         RunLogfile[]
+  ingestions       RunIngestion[]
   evaluations      RunEvaluation[]
   runEvents        RunEvent[]
   traceSummary     RunTraceSummary?
@@ -347,6 +356,34 @@ model RunLogfile {
   @@index([runId])
   @@index([projectId])
   @@index([uploadedById])
+}
+
+model RunIngestion {
+  id               String          @id @default(cuid())
+  runId            String
+  projectId        String
+  sourceType       String
+  formatHint       String?
+  mappingConfig    Json?
+  fileRef          String?
+  parserVersion    String?
+  parserConfidence Float?
+  strictReport     Json?
+  sourceMeta       Json?
+  status           IngestionStatus @default(CREATED)
+  failureDetails   String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  run     AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model RunEvaluation {

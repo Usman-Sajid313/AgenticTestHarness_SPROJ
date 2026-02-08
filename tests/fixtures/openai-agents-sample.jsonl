@@ -1,0 +1,4 @@
+{"id":"evt_001","type":"user_message","timestamp":"2026-02-08T10:00:00.000Z","content":"Plan a 2-day Tokyo itinerary with food and weather-aware activities."}
+{"id":"evt_002","type":"tool_call","timestamp":"2026-02-08T10:00:01.000Z","tool_call_id":"call_weather_1","tool_name":"weather.lookup","args":{"city":"Tokyo","days":2}}
+{"id":"evt_003","type":"tool_result","timestamp":"2026-02-08T10:00:02.000Z","tool_call_id":"call_weather_1","result":{"forecast":[{"day":"Day 1","summary":"Light rain","tempC":12},{"day":"Day 2","summary":"Sunny","tempC":17}]}}
+{"id":"evt_004","type":"assistant_message","timestamp":"2026-02-08T10:00:03.000Z","response.output_text":"Day 1: Indoor museums and ramen. Day 2: Ueno Park, Asakusa, and sushi near Tsukiji."}

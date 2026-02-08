@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   RadarChart,
   Radar,
@@ -68,8 +68,28 @@ export default function RunView({
   );
 
   const evalTriggeredRef = useRef(false);
+  const judgeTriggerInFlightRef = useRef(false);
+  const lastJudgeAttemptAtRef = useRef(0);
+  const JUDGE_RETRY_COOLDOWN_MS = 30000;
 
   const runId = run.id;
+
+  const triggerJudge = useCallback(async () => {
+    if (judgeTriggerInFlightRef.current) return;
+
+    const now = Date.now();
+    if (now - lastJudgeAttemptAtRef.current < JUDGE_RETRY_COOLDOWN_MS) return;
+
+    judgeTriggerInFlightRef.current = true;
+    lastJudgeAttemptAtRef.current = now;
+    try {
+      await fetch(`/api/runs/${runId}/judge`, { method: "POST" });
+    } catch (err) {
+      console.error("Failed to trigger judge", err);
+    } finally {
+      judgeTriggerInFlightRef.current = false;
+    }
+  }, [runId]);
 
   useEffect(() => {
     if (evalTriggeredRef.current) return;
@@ -96,7 +116,7 @@ export default function RunView({
           return;
         }
         if (currentRun.status === "READY_FOR_JUDGING") {
-          await fetch(`/api/runs/${runId}/judge`, { method: "POST" });
+          await triggerJudge();
           return;
         }
 
@@ -104,7 +124,7 @@ export default function RunView({
         console.error("Failed to trigger processing", err);
       }
     })();
-  }, [runId]);
+  }, [runId, triggerJudge]);
 
   useEffect(() => {
     const isDone =
@@ -127,7 +147,7 @@ export default function RunView({
         }
 
         if (data.run.status === "READY_FOR_JUDGING") {
-          fetch(`/api/runs/${runId}/judge`, { method: "POST" }).catch(console.error);
+          triggerJudge();
         }
       } catch (err) {
         console.error("Failed to poll run/evaluation", err);
@@ -135,7 +155,7 @@ export default function RunView({
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [runId, run.status, evaluation?.status]);
+  }, [runId, run.status, evaluation?.status, triggerJudge]);
 
   const isDone = evaluation?.status === "COMPLETED";
 
