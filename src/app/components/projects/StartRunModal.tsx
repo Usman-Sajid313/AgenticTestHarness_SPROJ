@@ -42,12 +42,12 @@ export default function StartRunModal({
           const wsId = data.user?.memberships?.[0]?.workspaceId;
           if (wsId) {
             setWorkspaceId(wsId);
-            
+
             const rubricsRes = await fetch(`/api/rubrics?workspaceId=${wsId}`);
             if (rubricsRes.ok) {
               const rubricsData = await rubricsRes.json();
               setRubrics(rubricsData.rubrics || []);
-              
+
               // Auto-select default rubric if available
               const defaultRubric = rubricsData.rubrics?.find((r: Rubric) => r.isDefault);
               if (defaultRubric) {

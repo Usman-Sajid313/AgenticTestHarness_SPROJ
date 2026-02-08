@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import ProjectRunsTable from "@/app/components/projects/ProjectRunsTable";
 import StartRunButton from "@/app/components/projects/StartRunButton";
+import CompareRunsButton from "@/app/components/projects/CompareRunsButton";
 import ScoreTrendChart from "@/app/components/projects/ScoreTrendChart";
 
 const PAGE_SIZE = 10;
@@ -68,10 +69,17 @@ export default async function ProjectPage(context: {
             </p>
           </div>
 
-          <StartRunButton projectId={projectId} />
+          <div className="flex items-center gap-3">
+            <CompareRunsButton
+              projectId={projectId}
+              projectName={project.name}
+              runs={allRunsForChart}
+            />
+            <StartRunButton projectId={projectId} />
+          </div>
         </div>
 
-        <ScoreTrendChart runs={allRunsForChart} />
+        <ScoreTrendChart runs={allRunsForChart} projectId={projectId} />
 
         <ProjectRunsTable
           runs={runs}

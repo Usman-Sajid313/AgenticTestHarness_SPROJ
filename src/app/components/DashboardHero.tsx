@@ -6,6 +6,30 @@ import { Space_Grotesk } from 'next/font/google';
 import DeleteAccountModal from './DeleteAccountModal';
 import { USER_PROFILE_UPDATED_EVENT } from '@/lib/events';
 
+const CACHE_KEY = 'dashboard-display-name';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCachedDisplayName(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { name, at } = JSON.parse(raw) as { name: string; at: number };
+    if (Date.now() - at > CACHE_TTL_MS) return null;
+    return name;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedDisplayName(name: string) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ name, at: Date.now() }));
+  } catch {
+    // ignore
+  }
+}
+
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -19,11 +43,14 @@ type MeResponse = {
 
 export default function DashboardHero() {
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string>('…');
+  const [displayName, setDisplayName] = useState<string>(() => getCachedDisplayName() ?? '…');
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    const cached = getCachedDisplayName();
+    if (cached) setDisplayName(cached);
+
     let alive = true;
     (async () => {
       try {
@@ -32,10 +59,11 @@ export default function DashboardHero() {
         const data = (await res.json()) as MeResponse;
         if (alive) {
           const name = (data.name && data.name.trim()) || data.email;
+          setCachedDisplayName(name);
           setDisplayName(name);
         }
       } catch {
-        
+        // keep cached or placeholder
       }
     })();
     return () => {
@@ -47,7 +75,10 @@ export default function DashboardHero() {
     function onProfileUpdated(event: Event) {
       const detail = (event as CustomEvent<{ name?: string }>).detail;
       const nextName = (detail?.name && detail.name.trim()) || null;
-      if (nextName) setDisplayName(nextName);
+      if (nextName) {
+        setCachedDisplayName(nextName);
+        setDisplayName(nextName);
+      }
     }
 
     window.addEventListener(USER_PROFILE_UPDATED_EVENT, onProfileUpdated as EventListener);
@@ -57,9 +88,9 @@ export default function DashboardHero() {
   }, []);
 
   return (
-    <section className={`${spaceGrotesk.className} relative w-full`}>
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <h1 className="pl-2 text-3xl font-bold text-white sm:text-4xl md:text-5xl">
+    <section className={`${spaceGrotesk.className} relative w-full min-w-0`}>
+      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between md:gap-4">
+        <h1 className="min-w-0 truncate pl-2 text-xl font-bold text-white sm:text-2xl md:text-3xl" title={displayName !== '…' ? `Welcome ${displayName}` : undefined}>
           Welcome <span id="welcome-name">{displayName}</span>
         </h1>
 

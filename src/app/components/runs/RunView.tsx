@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 
 export type DimensionResult = {
   score: number;
@@ -14,6 +23,16 @@ export type MetricBreakdown = {
   dimensions: Record<string, DimensionResult>;
 };
 
+export type PanelEntry = {
+  model: string;
+  scorecard: { overallScore: number; dimensions?: Record<string, { score: number }> };
+};
+
+export type GeminiJudgement = {
+  panel?: PanelEntry[];
+  verifier?: unknown;
+};
+
 export type Evaluation = {
   id: string;
   status: string;
@@ -21,6 +40,7 @@ export type Evaluation = {
   summary: string | null;
   metricBreakdown: MetricBreakdown | null;
   confidence?: number | null;
+  geminiJudgement?: GeminiJudgement | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -194,10 +214,9 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
       )}
 
       <div className="rounded-2xl bg-white/5 p-8 ring-1 ring-white/10 backdrop-blur-xl">
-        <h2 className="text-xl font-semibold text-white mb-4">Overall Score</h2>
-
-        <div className="flex items-center gap-6">
-          <div className="relative h-24 w-24">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl font-semibold text-white">Overall Score</h2>
+          <div className="relative h-20 w-20 shrink-0">
             <div className="absolute inset-0 rounded-full bg-white/10" />
             <div
               className="absolute inset-1 rounded-full bg-gradient-to-tr from-purple-500 to-fuchsia-400 flex items-center justify-center"
@@ -206,13 +225,64 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
               <span className="text-2xl font-bold text-white">{score}</span>
             </div>
           </div>
-
-          <p className="text-white/70 max-w-xl">
-            {breakdown.overallComment ??
-              "No summary is available for this evaluation."}
-          </p>
         </div>
+
+        <p className="text-white/70 text-sm leading-relaxed max-w-none">
+          {breakdown.overallComment ??
+            "No summary is available for this evaluation."}
+        </p>
       </div>
+
+      {Object.keys(breakdown.dimensions).length > 0 && (
+        <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
+          <h2 className="text-lg font-semibold text-white mb-4">Dimension overview</h2>
+          <p className="text-sm text-white/60 mb-4">Strength profile across evaluation dimensions</p>
+          <div className="h-72 w-full max-w-md">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart
+                data={Object.entries(breakdown.dimensions).map(([name, dim]) => ({
+                  dimension: name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                  score: Math.round(dim.score),
+                  fullMark: 100,
+                }))}
+              >
+                <PolarGrid stroke="rgba(255,255,255,0.15)" />
+                <PolarAngleAxis
+                  dataKey="dimension"
+                  tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
+                  tickLine={{ stroke: "rgba(255,255,255,0.2)" }}
+                />
+                <PolarRadiusAxis
+                  angle={90}
+                  domain={[0, 100]}
+                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                />
+                <Radar
+                  name="Score"
+                  dataKey="score"
+                  stroke="#a855f7"
+                  fill="#a855f7"
+                  fillOpacity={0.35}
+                  strokeWidth={2}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "rgba(0,0,0,0.9)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "rgba(255,255,255,0.9)" }}
+                  formatter={(value: number | undefined) => [`${value ?? 0}/100`, "Score"]}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {evaluation.geminiJudgement?.panel && evaluation.geminiJudgement.panel.length > 0 && (
+        <PanelScoresCard panel={evaluation.geminiJudgement.panel} finalScore={score} />
+      )}
 
       <div className="space-y-4">
         {Object.entries(breakdown.dimensions).map(
@@ -221,38 +291,34 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
               key={key}
               className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl"
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">
                   {humanizeKey(key)}
                 </h3>
-                <span className="text-sm font-semibold text-purple-300">
+                <span className="text-sm font-semibold text-purple-300 shrink-0 ml-3">
                   {dim.score} / 100
                 </span>
               </div>
 
               {dim.summary && (
-                <p className="text-sm text-white/80 mb-4 leading-relaxed">
+                <p className="text-sm text-white/80 mb-6 leading-relaxed">
                   {dim.summary}
                 </p>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <p className="text-xs font-semibold text-emerald-300 mb-1">
+                  <p className="text-xs font-semibold text-emerald-300 mb-2">
                     What went well
                   </p>
-                  <p className="text-sm text-white/70">
-                    {dim.strengths || "—"}
-                  </p>
+                  <ProsConsList value={dim.strengths} />
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold text-rose-300 mb-1">
+                  <p className="text-xs font-semibold text-rose-300 mb-2">
                     Where to improve
                   </p>
-                  <p className="text-sm text-white/70">
-                    {dim.weaknesses || "—"}
-                  </p>
+                  <ProsConsList value={dim.weaknesses} />
                 </div>
               </div>
             </div>
@@ -263,6 +329,73 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
   );
 }
 
+/** Renders pros or cons as a list; backend may send multiple items joined by "; " */
+function ProsConsList({ value }: { value?: string }) {
+  if (!value || !value.trim()) return <p className="text-sm text-white/50">—</p>;
+  const items = value
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (items.length <= 1) return <p className="text-sm text-white/70 leading-relaxed">{value}</p>;
+  return (
+    <ul className="list-disc list-inside space-y-1.5 text-sm text-white/70 leading-relaxed">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
 function humanizeKey(key: string) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const AGREEMENT_THRESHOLD = 5;
+
+function PanelScoresCard({
+  panel,
+  finalScore,
+}: {
+  panel: PanelEntry[];
+  finalScore: number;
+}) {
+  const withinThreshold = panel.filter(
+    (p) => Math.abs((p.scorecard.overallScore ?? 0) - finalScore) <= AGREEMENT_THRESHOLD
+  ).length;
+  const agreementLabel =
+    panel.length <= 1
+      ? "Single model"
+      : `${withinThreshold}/${panel.length} models within ${AGREEMENT_THRESHOLD} pts`;
+
+  return (
+    <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
+      <h2 className="text-lg font-semibold text-white mb-2">Judge panel</h2>
+      <p className="text-sm text-white/60 mb-4">
+        Per-model overall scores and agreement with the combined result
+      </p>
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        {panel.map((entry) => {
+          const s = Math.round(entry.scorecard.overallScore ?? 0);
+          const diff = s - finalScore;
+          return (
+            <div
+              key={entry.model}
+              className="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10 flex items-center gap-3"
+            >
+              <span className="text-white/80 font-medium truncate max-w-[120px]" title={entry.model}>
+                {entry.model}
+              </span>
+              <span className="text-purple-300 font-semibold">{s}/100</span>
+              {diff !== 0 && (
+                <span className={diff > 0 ? "text-emerald-400 text-xs" : "text-rose-400 text-xs"}>
+                  {diff > 0 ? "+" : ""}{diff}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-white/50">{agreementLabel}</p>
+    </div>
+  );
 }
