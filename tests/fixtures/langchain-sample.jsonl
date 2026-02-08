@@ -1,0 +1,4 @@
+{"run_id":"run_lc_001","event":"chain_start","name":"travel_planner_chain","timestamp":"2026-02-08T10:05:00.000Z","input":{"question":"Find a budget 2-day Kyoto plan"}}
+{"run_id":"run_lc_001","event":"tool_start","name":"hotel_search","timestamp":"2026-02-08T10:05:01.000Z","tool_input":{"city":"Kyoto","max_price_usd":120}}
+{"run_id":"run_lc_001","event":"tool_end","name":"hotel_search","timestamp":"2026-02-08T10:05:02.000Z","output":{"hotels":[{"name":"Hotel A","price_usd":110},{"name":"Hotel B","price_usd":95}]}}
+{"run_id":"run_lc_001","event":"chain_end","name":"travel_planner_chain","timestamp":"2026-02-08T10:05:03.000Z","output":{"answer":"Stay near Gion. Visit Kiyomizu-dera, Nishiki Market, and Arashiyama with transit pass tips."}}

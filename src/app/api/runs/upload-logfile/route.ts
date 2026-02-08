@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { supabaseServerClient } from "@/lib/supabase";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -19,6 +19,8 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  const supabaseServerClient = getSupabaseServerClient();
 
   const run = await prisma.agentRun.create({
     data: {
