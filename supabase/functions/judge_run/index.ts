@@ -468,14 +468,25 @@ serve(async (req) => {
 
       if (panelResults.length === 0) {
         console.error("[judge_run] All panel models failed: count=", GROQ_PANEL_MODELS.length);
-        await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
-        return new Response(
-          JSON.stringify({
-            error: "All panel evaluators failed",
-            details: "No GROQ model returned a valid scorecard. Please try again or check API availability.",
-          }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
+        console.log("[judge_run] Attempting single-model fallback with primary model:", GROQ_MODEL_PRIMARY);
+        try {
+          await sleep(500);
+          const fallbackScorecard = await callGroqEvaluator(judgePacket, groqApiKey, rubric);
+          panelResults = [{ model: `${GROQ_MODEL_PRIMARY} (fallback)`, scorecard: fallbackScorecard }];
+          console.log("[judge_run] Single-model fallback succeeded:", GROQ_MODEL_PRIMARY, "score=", fallbackScorecard.overallScore);
+        } catch (fallbackError) {
+          const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+          console.error("[judge_run] Single-model fallback failed:", fallbackMessage);
+          await dbExecute('UPDATE "AgentRun" SET status = $1 WHERE id = $2', ["FAILED", runId]);
+          return new Response(
+            JSON.stringify({
+              error: "All panel evaluators failed",
+              details: "No GROQ model returned a valid scorecard, and single-model fallback also failed. Please try again or check API availability.",
+              fallbackError: fallbackMessage,
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
       }
 
       console.log("[judge_run] Primary model:", panelResults[0]!.model, "score=", panelResults[0]!.scorecard.overallScore);

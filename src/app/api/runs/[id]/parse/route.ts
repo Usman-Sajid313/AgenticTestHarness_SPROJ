@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
@@ -49,15 +53,42 @@ export async function POST(
     );
   }
 
+  const logfile = run.logfiles[0];
+  const logfileMeta = isObject(logfile.metadata) ? logfile.metadata : {};
+  const bodySourceType =
+    typeof body.sourceType === "string" && body.sourceType.trim()
+      ? body.sourceType.trim()
+      : undefined;
+  const bodyFormatHint =
+    typeof body.formatHint === "string" && body.formatHint.trim()
+      ? body.formatHint.trim()
+      : undefined;
+  const bodyMappingConfig =
+    body.mappingConfig && isObject(body.mappingConfig)
+      ? body.mappingConfig
+      : undefined;
+
+  const effectiveSourceType =
+    bodySourceType ||
+    (typeof logfileMeta.sourceType === "string" ? logfileMeta.sourceType : undefined) ||
+    "generic_jsonl";
+  const effectiveFormatHint =
+    bodyFormatHint ||
+    (typeof logfileMeta.formatHint === "string" ? logfileMeta.formatHint : undefined) ||
+    null;
+  const effectiveMappingConfig =
+    bodyMappingConfig ||
+    (isObject(logfileMeta.mappingConfig) ? logfileMeta.mappingConfig : null);
+
   const ingestion = await prisma.runIngestion.create({
     data: {
       runId: run.id,
       projectId: run.projectId,
-      sourceType: body.sourceType || "generic_jsonl",
-      formatHint: body.formatHint || null,
+      sourceType: effectiveSourceType,
+      formatHint: effectiveFormatHint,
       mappingConfig:
-        (body.mappingConfig as Prisma.InputJsonValue | undefined) || undefined,
-      fileRef: run.logfiles[0].storageKey,
+        (effectiveMappingConfig as Prisma.InputJsonValue | undefined) || undefined,
+      fileRef: logfile.storageKey,
       status: "CREATED",
     },
   });
@@ -106,9 +137,9 @@ export async function POST(
       body: JSON.stringify({
         runId: id,
         ingestionId: ingestion.id,
-        sourceType: body.sourceType || "generic_jsonl",
-        formatHint: body.formatHint || null,
-        mappingConfig: body.mappingConfig || null,
+        sourceType: effectiveSourceType,
+        formatHint: effectiveFormatHint,
+        mappingConfig: effectiveMappingConfig,
       }),
     });
 

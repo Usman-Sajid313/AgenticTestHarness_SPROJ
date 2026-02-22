@@ -103,12 +103,18 @@ export async function POST(
     if (!response.ok) {
       const errorText = responseText || JSON.stringify(data);
       console.error("[judge API] Judge failed: status=", response.status, "error=", errorText);
+      const isTerminalPanelFailure =
+        errorText.includes("All panel evaluators failed") ||
+        errorText.includes("No GROQ model returned a valid scorecard");
       const isRetryable =
-        response.status >= 500 ||
-        response.status === 429 ||
-        errorText.includes("WORKER_LIMIT") ||
-        errorText.includes("timeout") ||
-        errorText.includes("rate limit");
+        !isTerminalPanelFailure &&
+        (
+          response.status >= 500 ||
+          response.status === 429 ||
+          errorText.includes("WORKER_LIMIT") ||
+          errorText.includes("timeout") ||
+          errorText.includes("rate limit")
+        );
 
       if (isRetryable) {
         await prisma.agentRun.updateMany({

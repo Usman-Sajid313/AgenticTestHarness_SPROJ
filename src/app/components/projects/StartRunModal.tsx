@@ -17,6 +17,40 @@ type StartRunModalProps = {
   onSuccess?: () => void;
 };
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getPublicDataTrajectoryCountFromText(text: string): number | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return null;
+  }
+
+  const isTrajectory = (item: unknown) => {
+    if (!isObject(item)) return false;
+    const record = item as Record<string, unknown>;
+    const toolList = record["tool list"] ?? record.tool_list ?? record.toolList;
+    return (
+      typeof record.query === "string" &&
+      ("final_answer" in record || "final answer" in record) &&
+      Array.isArray(toolList)
+    );
+  };
+
+  if (!isTrajectory(parsed[0])) {
+    return null;
+  }
+
+  return parsed.filter(isTrajectory).length;
+}
+
 export default function StartRunModal({
   open,
   onClose,
@@ -28,6 +62,9 @@ export default function StartRunModal({
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [selectedRubricId, setSelectedRubricId] = useState<string>("");
+  const [publicDataTrajectoryCount, setPublicDataTrajectoryCount] = useState<number | null>(null);
+  const [selectedTrajectoryNumber, setSelectedTrajectoryNumber] = useState<number>(1);
+  const [detectingFileFormat, setDetectingFileFormat] = useState(false);
   const [, setWorkspaceId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -64,6 +101,31 @@ export default function StartRunModal({
     fetchData();
   }, [open]);
 
+  async function handleFileSelect(nextFile: File | null) {
+    setFile(nextFile);
+    setPublicDataTrajectoryCount(null);
+    setSelectedTrajectoryNumber(1);
+
+    if (!nextFile) return;
+
+    const lowerName = nextFile.name.toLowerCase();
+    if (!lowerName.endsWith(".json")) return;
+
+    setDetectingFileFormat(true);
+    try {
+      const text = await nextFile.text();
+      const count = getPublicDataTrajectoryCountFromText(text);
+      if (typeof count === "number" && count > 0) {
+        setPublicDataTrajectoryCount(count);
+        setSelectedTrajectoryNumber(1);
+      }
+    } catch (error) {
+      console.error("Failed to inspect selected file:", error);
+    } finally {
+      setDetectingFileFormat(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!file) return;
@@ -78,6 +140,19 @@ export default function StartRunModal({
       formData.append("projectId", projectId);
       if (selectedRubricId) {
         formData.append("rubricId", selectedRubricId);
+      }
+      if (publicDataTrajectoryCount && publicDataTrajectoryCount > 0) {
+        const clampedNumber = Math.min(
+          publicDataTrajectoryCount,
+          Math.max(1, Math.floor(selectedTrajectoryNumber || 1))
+        );
+        const trajectoryIndex = clampedNumber - 1; // UI is 1-based; parser uses 0-based
+        formData.append("sourceType", "public_data");
+        formData.append("formatHint", "json");
+        formData.append(
+          "mappingConfig",
+          JSON.stringify({ publicDataTrajectoryIndex: trajectoryIndex })
+        );
       }
 
       const uploadRes = await fetch("/api/runs/upload-logfile", {
@@ -121,11 +196,53 @@ export default function StartRunModal({
             <input
               type="file"
               accept=".txt,.log,.json,.jsonl,.ndjson"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                void handleFileSelect(e.target.files?.[0] || null);
+              }}
               className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30"
               required
             />
+            {detectingFileFormat && (
+              <p className="text-xs text-white/40 mt-2">
+                Inspecting file format...
+              </p>
+            )}
           </div>
+
+          {publicDataTrajectoryCount && publicDataTrajectoryCount > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-2">
+                Trajectory #
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={publicDataTrajectoryCount}
+                value={selectedTrajectoryNumber}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  if (!Number.isFinite(next)) {
+                    setSelectedTrajectoryNumber(1);
+                    return;
+                  }
+                  setSelectedTrajectoryNumber(next);
+                }}
+                className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="text-xs text-white/40 mt-1">
+                Detected a multi-trajectory `public_data` file with {publicDataTrajectoryCount} trajectories.
+                The run will parse and evaluate only the selected trajectory (1-based index).
+              </p>
+            </div>
+          )}
+
+          {publicDataTrajectoryCount === 1 && (
+            <div className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+              <p className="text-xs text-white/60">
+                Detected a `public_data` trajectory file. This run will evaluate trajectory #1.
+              </p>
+            </div>
+          )}
 
           {rubrics.length > 0 && (
             <div>

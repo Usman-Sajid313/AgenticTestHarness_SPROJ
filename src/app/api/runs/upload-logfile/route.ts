@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { getSessionUser } from "@/lib/auth";
@@ -8,6 +9,30 @@ export async function POST(req: Request) {
   const file = formData.get("file") as File | null;
   const projectId = formData.get("projectId") as string | null;
   const rubricId = formData.get("rubricId") as string | null;
+  const sourceTypeRaw = formData.get("sourceType");
+  const formatHintRaw = formData.get("formatHint");
+  const mappingConfigRaw = formData.get("mappingConfig");
+
+  const sourceType =
+    typeof sourceTypeRaw === "string" && sourceTypeRaw.trim()
+      ? sourceTypeRaw.trim()
+      : null;
+  const formatHint =
+    typeof formatHintRaw === "string" && formatHintRaw.trim()
+      ? formatHintRaw.trim()
+      : null;
+
+  let mappingConfig: Prisma.InputJsonValue | null = null;
+  if (typeof mappingConfigRaw === "string" && mappingConfigRaw.trim()) {
+    try {
+      mappingConfig = JSON.parse(mappingConfigRaw) as Prisma.InputJsonValue;
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid mappingConfig JSON" },
+        { status: 400 }
+      );
+    }
+  }
 
   const user = await getSessionUser();
   if (!user)
@@ -77,6 +102,14 @@ export async function POST(req: Request) {
       sizeBytes: file.size,
       checksum: sha256,
       contentType: file.type || "text/plain",
+      metadata:
+        sourceType || formatHint || mappingConfig
+          ? ({
+              sourceType,
+              formatHint,
+              mappingConfig,
+            } as Prisma.InputJsonValue)
+          : undefined,
     },
   });
 

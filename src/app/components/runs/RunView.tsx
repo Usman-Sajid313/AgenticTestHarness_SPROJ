@@ -73,6 +73,10 @@ export default function RunView({
   const JUDGE_RETRY_COOLDOWN_MS = 30000;
 
   const runId = run.id;
+  const isRunTerminal =
+    run.status === "COMPLETED" ||
+    run.status === "COMPLETED_LOW_CONFIDENCE" ||
+    run.status === "FAILED";
 
   const triggerJudge = useCallback(async () => {
     if (judgeTriggerInFlightRef.current) return;
@@ -127,12 +131,7 @@ export default function RunView({
   }, [runId, triggerJudge]);
 
   useEffect(() => {
-    const isDone =
-      run.status === "COMPLETED" ||
-      run.status === "COMPLETED_LOW_CONFIDENCE" ||
-      run.status === "FAILED";
-
-    if (isDone && evaluation?.status === "COMPLETED") return;
+    if (isRunTerminal) return;
 
     const interval = setInterval(async () => {
       try {
@@ -155,9 +154,10 @@ export default function RunView({
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [runId, run.status, evaluation?.status, triggerJudge]);
+  }, [runId, isRunTerminal, triggerJudge]);
 
   const isDone = evaluation?.status === "COMPLETED";
+  const isFailed = run.status === "FAILED" && !isDone;
 
   return (
     <div>
@@ -168,7 +168,13 @@ export default function RunView({
         <span className="font-mono text-xs">{run.id}</span>
       </p>
 
-      {!isDone ? <AnalyzingState status={run.status} /> : <ResultState evaluation={evaluation!} run={run} />}
+      {isDone ? (
+        <ResultState evaluation={evaluation!} run={run} />
+      ) : isFailed ? (
+        <FailedState status={run.status} />
+      ) : (
+        <AnalyzingState status={run.status} />
+      )}
     </div>
   );
 }
@@ -202,6 +208,18 @@ function AnalyzingState({ status }: { status: string }) {
       <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
       <h2 className="text-xl font-semibold text-white mb-2">{message.title}</h2>
       <p className="text-white/70">{message.description}</p>
+      <p className="text-white/40 text-sm mt-2">Status: {status}</p>
+    </div>
+  );
+}
+
+function FailedState({ status }: { status: string }) {
+  return (
+    <div className="mt-10 rounded-2xl bg-rose-500/10 p-10 text-center ring-1 ring-rose-500/20 backdrop-blur-xl">
+      <h2 className="text-xl font-semibold text-rose-200 mb-2">Run Failed</h2>
+      <p className="text-white/70">
+        Parsing or judging failed. Check the server logs for the specific error and retry the run.
+      </p>
       <p className="text-white/40 text-sm mt-2">Status: {status}</p>
     </div>
   );

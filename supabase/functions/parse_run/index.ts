@@ -2,12 +2,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.0";
 import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
-const PARSER_VERSION = "1.1.0";
+const PARSER_VERSION = "1.2.1";
 const MAX_PACKET_SIZE_BYTES = 500000;
+const TARGET_JUDGE_PACKET_BYTES = 200000;
 const MAX_TOOL_INTERACTIONS = 50;
 const MAX_STORED_EVENTS = 5000;
 const MAX_TRACE_EVENTS_IN_PACKET = 200;
 const MAX_EVENT_DATA_CHARS = 400;
+const MAX_TOOL_INTERACTION_ARGS_CHARS = 500;
+const MAX_TOOL_INTERACTION_RESULT_CHARS = 1200;
+const MAX_TOOL_INTERACTION_SUMMARY_CHARS = 300;
 
 interface DenoRequest {
   runId: string;
@@ -675,16 +679,18 @@ function detectFormat(text: string, formatHint?: string): string {
 function parseWithAdapters(text: string, context: ParseContext): AdapterParseResult {
   const requestedSourceType = (context.sourceType || "generic_jsonl").toLowerCase();
   const detectedFormat = detectFormat(text, context.formatHint);
+  const genericSourceTypes = new Set(["generic_jsonl", "generic_json", "generic", "auto"]);
 
   const adapters: IngestionAdapter[] = [
     openAIAgentsAdapter(),
     langChainAdapter(),
+    publicDataTrajectoryAdapter(),
     genericJsonlAdapter(),
   ];
 
-  const bySourceType = adapters.find((adapter) =>
-    adapter.sourceTypes.includes(requestedSourceType)
-  );
+  const bySourceType = genericSourceTypes.has(requestedSourceType)
+    ? undefined
+    : adapters.find((adapter) => adapter.sourceTypes.includes(requestedSourceType));
   const adapter =
     bySourceType ||
     adapters.find((candidate) => candidate.canHandle(text, detectedFormat)) ||
@@ -771,6 +777,23 @@ function langChainAdapter(): IngestionAdapter {
   };
 }
 
+function publicDataTrajectoryAdapter(): IngestionAdapter {
+  return {
+    name: "public_data_trajectory",
+    sourceTypes: ["public_data", "public_data_trajectory", "agent_public_data"],
+    canHandle: (text, detectedFormat) => {
+      if (detectedFormat !== "json") return false;
+      return (
+        text.includes('"query"') &&
+        text.includes('"final_answer"') &&
+        (text.includes('"tool list"') || text.includes('"tool_list"'))
+      );
+    },
+    parse: (text, context, detectedFormat) =>
+      parsePublicDataTrajectories(text, detectedFormat, context.mappingConfig),
+  };
+}
+
 function genericJsonlAdapter(): IngestionAdapter {
   return {
     name: "generic_jsonl",
@@ -779,6 +802,422 @@ function genericJsonlAdapter(): IngestionAdapter {
     parse: (text, context, detectedFormat) =>
       parseGenericEvents(text, detectedFormat, context.mappingConfig, "generic_jsonl"),
   };
+}
+
+function parsePublicDataTrajectories(
+  text: string,
+  format: string,
+  mappingConfig?: Record<string, unknown> | null
+): AdapterParseResult {
+  const events: ParsedEvent[] = [];
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  let totalInputRecords = 0;
+  let trajectoryCount = 0;
+  const selectedTrajectoryIndex = parsePublicDataTrajectoryIndex(mappingConfig);
+
+  if (format !== "json") {
+    warnings.push("public_data_trajectory adapter expected JSON; falling back to empty parse");
+    return {
+      events,
+      sourceMeta: {
+        adapter: "public_data_trajectory",
+        format,
+        trajectoryCount,
+      },
+      strictReport: {
+        adapterUsed: "public_data_trajectory",
+        detectedFormat: format,
+        sourceTypeRequested: "public_data_trajectory",
+        confidence: 0,
+        totalInputRecords,
+        parsedEvents: 0,
+        droppedRecords: 0,
+        timestampCoverage: 0,
+        typedEventCoverage: 0,
+        warnings,
+        errors,
+      },
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    const allTrajectories = extractPublicDataTrajectoryRecords(parsed);
+    totalInputRecords = allTrajectories.length;
+
+    let trajectories = allTrajectories;
+    if (selectedTrajectoryIndex !== undefined) {
+      if (
+        selectedTrajectoryIndex < 0 ||
+        selectedTrajectoryIndex >= allTrajectories.length
+      ) {
+        warnings.push(
+          `Requested publicDataTrajectoryIndex ${selectedTrajectoryIndex} is out of range (0-${Math.max(0, allTrajectories.length - 1)})`
+        );
+        trajectories = [];
+      } else {
+        trajectories = [allTrajectories[selectedTrajectoryIndex]!];
+      }
+    }
+    trajectoryCount = trajectories.length;
+
+    if (trajectories.length === 0) {
+      warnings.push(
+        "JSON payload did not match public_data trajectory shape (expected objects with query, tool list, and final_answer)"
+      );
+    }
+
+    for (let trajectoryIndex = 0; trajectoryIndex < trajectories.length; trajectoryIndex++) {
+      const record = trajectories[trajectoryIndex];
+      if (!record) continue;
+      const trajectoryEvents = buildPublicDataTrajectoryEvents(
+        record,
+        trajectoryIndex,
+        events.length,
+        warnings
+      );
+      events.push(...trajectoryEvents);
+    }
+  } catch {
+    errors.push("Invalid JSON payload");
+  }
+
+  return {
+    events,
+    sourceMeta: {
+      adapter: "public_data_trajectory",
+      format,
+      trajectoryCount,
+      selectedTrajectoryIndex,
+    },
+    strictReport: {
+      adapterUsed: "public_data_trajectory",
+      detectedFormat: format,
+      sourceTypeRequested: "public_data_trajectory",
+      confidence: 0,
+      totalInputRecords,
+      parsedEvents: events.length,
+      droppedRecords: Math.max(0, totalInputRecords - trajectoryCount),
+      timestampCoverage: 0,
+      typedEventCoverage: 0,
+      warnings,
+      errors,
+    },
+  };
+}
+
+function extractPublicDataTrajectoryRecords(input: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(input)) {
+    return input.filter(isPublicDataTrajectoryRecord);
+  }
+
+  if (!isObject(input)) {
+    return [];
+  }
+
+  const root = input as Record<string, unknown>;
+  if (isPublicDataTrajectoryRecord(root)) {
+    return [root];
+  }
+
+  const arrayCandidate = firstArrayCandidate(root);
+  if (!arrayCandidate) {
+    return [];
+  }
+
+  return arrayCandidate.filter(isPublicDataTrajectoryRecord);
+}
+
+function parsePublicDataTrajectoryIndex(
+  mappingConfig?: Record<string, unknown> | null
+): number | undefined {
+  if (!mappingConfig || !isObject(mappingConfig)) return undefined;
+
+  const raw =
+    mappingConfig.publicDataTrajectoryIndex ??
+    mappingConfig.trajectoryIndex ??
+    mappingConfig["public_data_trajectory_index"];
+
+  if (typeof raw === "number" && Number.isInteger(raw)) {
+    return raw;
+  }
+
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function isPublicDataTrajectoryRecord(value: unknown): value is Record<string, unknown> {
+  if (!isObject(value)) return false;
+  const record = value as Record<string, unknown>;
+  const hasQuery = typeof record.query === "string";
+  const hasFinalAnswer = "final_answer" in record || "final answer" in record;
+  const toolListValue =
+    record["tool list"] ??
+    record.tool_list ??
+    record.toolList;
+  const hasToolList = Array.isArray(toolListValue);
+  return hasQuery && hasFinalAnswer && hasToolList;
+}
+
+function buildPublicDataTrajectoryEvents(
+  record: Record<string, unknown>,
+  trajectoryIndex: number,
+  startingSequence: number,
+  warnings: string[]
+): ParsedEvent[] {
+  const events: ParsedEvent[] = [];
+
+  const generationInfo = isObject(record.generation_info)
+    ? (record.generation_info as Record<string, unknown>)
+    : null;
+  const baseTimestamp =
+    asString(generationInfo?.timestamp) ||
+    asString(record.timestamp) ||
+    asString(record.created_at) ||
+    asString(record.createdAt);
+  let timestampOffsetSeconds = 0;
+
+  const nextTimestamp = () =>
+    syntheticOffsetTimestamp(baseTimestamp, timestampOffsetSeconds++);
+
+  const queryText = asString(record.query) || "";
+  events.push({
+    id: `traj_${trajectoryIndex}_user`,
+    type: "user_message",
+    timestamp: nextTimestamp(),
+    sequence: startingSequence + events.length,
+    data: {
+      text: queryText,
+      trajectory_index: trajectoryIndex,
+      trajectory_type: asString(record.trajectory_type) || asString(record["trajectory type"]),
+      domain: asString(record.domain),
+      sequence_name: asString(record.sequence_name) || asString(record["sequence name"]),
+      sequence_description:
+        asString(record.sequence_description) || asString(record["sequence description"]),
+      source_format: "public_data_trajectory",
+    },
+  });
+
+  const rawToolList =
+    record["tool list"] ??
+    record.tool_list ??
+    record.toolList;
+  const toolList = Array.isArray(rawToolList) ? rawToolList : [];
+  if (!Array.isArray(rawToolList)) {
+    warnings.push(`Trajectory ${trajectoryIndex}: missing tool list array`);
+  }
+
+  for (let toolIndex = 0; toolIndex < toolList.length; toolIndex++) {
+    const rawTool = toolList[toolIndex];
+    if (!isObject(rawTool)) {
+      warnings.push(`Trajectory ${trajectoryIndex}: skipped non-object tool entry at index ${toolIndex}`);
+      continue;
+    }
+
+    const tool = rawTool as Record<string, unknown>;
+    const toolCallId = `traj_${trajectoryIndex}_tool_${toolIndex}`;
+    const toolName =
+      asString(tool["tool name"]) ||
+      asString(tool.tool_name) ||
+      asString(tool.name) ||
+      `tool_${toolIndex + 1}`;
+
+    const requiredParamsRaw =
+      tool["required parameters"] ??
+      tool.required_parameters ??
+      tool.requiredParams;
+    const optionalParamsRaw =
+      tool["optional parameters"] ??
+      tool.optional_parameters ??
+      tool.optionalParams;
+    const requiredArgs = parameterListToObject(requiredParamsRaw);
+    const optionalArgs = parameterListToObject(optionalParamsRaw);
+    const args = { ...optionalArgs, ...requiredArgs };
+
+    const executionStatusRaw =
+      asString(tool.execution_status) ||
+      asString(tool.executionStatus) ||
+      inferPublicDataToolStatus(tool);
+    const normalizedExecutionStatus = normalizePublicDataToolStatus(executionStatusRaw);
+
+    events.push({
+      id: `traj_${trajectoryIndex}_tool_${toolIndex}_start`,
+      type: "tool_start",
+      timestamp: nextTimestamp(),
+      sequence: startingSequence + events.length,
+      data: {
+        tool_call_id: toolCallId,
+        tool_name: toolName,
+        args,
+        required_parameters: requiredArgs,
+        optional_parameters: optionalArgs,
+        tool_description:
+          asString(tool["tool description"]) || asString(tool.tool_description),
+        api_name: asString(tool["API name"]) || asString(tool.api_name),
+        domain_name: asString(tool["domain name"]) || asString(tool.domain_name),
+        parent_tool_name:
+          asString(tool["parent tool name"]) || asString(tool.parent_tool_name),
+        execution_status: normalizedExecutionStatus,
+        trajectory_index: trajectoryIndex,
+        tool_index: toolIndex,
+      },
+    });
+
+    const executedOutputValue =
+      tool.executed_output ??
+      tool.executedOutput ??
+      tool.output ??
+      null;
+    const parsedOutput = parseStructuredOutputMaybe(executedOutputValue);
+    const resultType =
+      normalizedExecutionStatus === "error" || normalizedExecutionStatus === "timeout"
+        ? "tool_end_error"
+        : "tool_end";
+
+    const resultData: Record<string, unknown> = {
+      tool_call_id: toolCallId,
+      tool_name: toolName,
+      execution_status: normalizedExecutionStatus,
+      trajectory_index: trajectoryIndex,
+      tool_index: toolIndex,
+      raw_output: stringifyUnknown(executedOutputValue),
+    };
+    if (parsedOutput !== undefined) {
+      resultData.output = parsedOutput;
+    }
+    if (normalizedExecutionStatus === "error" || normalizedExecutionStatus === "timeout") {
+      resultData.error = stringifyUnknown(executedOutputValue) || executionStatusRaw;
+    }
+
+    events.push({
+      id: `traj_${trajectoryIndex}_tool_${toolIndex}_end`,
+      type: resultType,
+      timestamp: nextTimestamp(),
+      sequence: startingSequence + events.length,
+      data: resultData,
+    });
+  }
+
+  const finalAnswerValue = record.final_answer ?? record["final answer"];
+  const finalAnswer = normalizePublicDataFinalAnswer(finalAnswerValue);
+  events.push({
+    id: `traj_${trajectoryIndex}_assistant`,
+    type: "assistant_message",
+    timestamp: nextTimestamp(),
+    sequence: startingSequence + events.length,
+    data: {
+      text: finalAnswer.text,
+      reason: finalAnswer.reason,
+      trajectory_index: trajectoryIndex,
+      source_format: "public_data_trajectory",
+    },
+  });
+
+  return events;
+}
+
+function parameterListToObject(value: unknown): Record<string, unknown> {
+  if (!Array.isArray(value)) {
+    return {};
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const item of value) {
+    if (!isObject(item)) continue;
+    const entry = item as Record<string, unknown>;
+    const name = asString(entry.name) || asString(entry.key);
+    if (!name) continue;
+    result[name] = entry.value;
+  }
+  return result;
+}
+
+function inferPublicDataToolStatus(tool: Record<string, unknown>): string {
+  const rawOutput =
+    stringifyUnknown(tool.executed_output ?? tool.executedOutput ?? tool.output) || "";
+  if (/^\s*error\b/i.test(rawOutput) || /failed after \d+ attempts/i.test(rawOutput)) {
+    return "failed";
+  }
+  return "success";
+}
+
+function normalizePublicDataToolStatus(
+  status: string | undefined
+): "success" | "error" | "timeout" {
+  const normalized = status?.toLowerCase().trim() || "success";
+  if (normalized.includes("timeout")) return "timeout";
+  if (normalized.includes("fail") || normalized.includes("error")) return "error";
+  return "success";
+}
+
+function parseStructuredOutputMaybe(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("\""))) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function stringifyUnknown(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizePublicDataFinalAnswer(value: unknown): {
+  text: string;
+  reason?: string;
+} {
+  if (typeof value === "string") {
+    return { text: value };
+  }
+
+  if (isObject(value)) {
+    const record = value as Record<string, unknown>;
+    const text =
+      asString(record.answer) ||
+      asString(record.text) ||
+      asString(record.final_answer) ||
+      stringifyUnknown(value) ||
+      "";
+    const reason = asString(record.reason);
+    return reason ? { text, reason } : { text };
+  }
+
+  return {
+    text: stringifyUnknown(value) || "",
+  };
+}
+
+function syntheticOffsetTimestamp(
+  baseTimestamp: string | undefined,
+  offsetSeconds: number
+): string | undefined {
+  if (!baseTimestamp) return undefined;
+  const base = new Date(baseTimestamp);
+  if (Number.isNaN(base.getTime())) return undefined;
+  return new Date(base.getTime() + offsetSeconds * 1000).toISOString();
 }
 
 function parseGenericEvents(
@@ -1089,6 +1528,30 @@ function summarizeResult(result: unknown): string {
   return json.length > 200 ? json.slice(0, 200) + "..." : json;
 }
 
+function truncateString(value: string | undefined, maxChars: number): string | undefined {
+  if (!value) return value;
+  if (value.length <= maxChars) return value;
+  return value.slice(0, maxChars) + "...";
+}
+
+function truncateJsonValue(value: unknown, maxChars: number): unknown {
+  if (value == null) return value;
+  if (typeof value === "string") {
+    if (value.length <= maxChars) return value;
+    return { _truncated: true, _preview: value.slice(0, maxChars) + "..." };
+  }
+
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= maxChars) return value;
+    return { _truncated: true, _preview: json.slice(0, maxChars) + "..." };
+  } catch {
+    const fallback = String(value);
+    if (fallback.length <= maxChars) return fallback;
+    return { _truncated: true, _preview: fallback.slice(0, maxChars) + "..." };
+  }
+}
+
 function segmentSteps(events: ParsedEvent[]): Array<{
   stepNumber: number;
   description: string;
@@ -1371,8 +1834,25 @@ function buildJudgePacket(
     return 0;
   });
 
-  // Take top-K interactions
+  // Take top-K interactions and compact large fields to keep prompts manageable
   const topInteractions = prioritizedInteractions.slice(0, MAX_TOOL_INTERACTIONS);
+  const compactInteractions = topInteractions.map((interaction) => ({
+    ...interaction,
+    args: truncateJsonValue(
+      interaction.args,
+      MAX_TOOL_INTERACTION_ARGS_CHARS
+    ) as Record<string, unknown>,
+    argsRaw: truncateString(interaction.argsRaw, MAX_TOOL_INTERACTION_ARGS_CHARS),
+    result: truncateJsonValue(
+      interaction.result,
+      MAX_TOOL_INTERACTION_RESULT_CHARS
+    ),
+    resultSummary: truncateString(
+      interaction.resultSummary,
+      MAX_TOOL_INTERACTION_SUMMARY_CHARS
+    ),
+    eventIds: interaction.eventIds.map((id) => String(id)),
+  }));
 
   // Extract errors
   const errors = events
@@ -1440,7 +1920,7 @@ function buildJudgePacket(
       steps: steps.slice(0, 100), // Limit steps
     },
     trace,
-    toolInteractions: topInteractions,
+    toolInteractions: compactInteractions,
     errors: errors.slice(0, 20), // Limit errors
     retries: retries.slice(0, 10), // Limit retries
     finalOutput,
@@ -1454,12 +1934,12 @@ function buildJudgePacket(
     redactionReport,
   };
 
-  // Enforce size bounds
+  // Enforce size bounds (target smaller than hard max to keep LLM prompts reliable)
   let packetJson = JSON.stringify(packet);
   let packetSizeBytes = new TextEncoder().encode(packetJson).length;
+  const targetSize = Math.min(MAX_PACKET_SIZE_BYTES * 0.9, TARGET_JUDGE_PACKET_BYTES);
 
-  if (packetSizeBytes > MAX_PACKET_SIZE_BYTES) {
-    const targetSize = MAX_PACKET_SIZE_BYTES * 0.9; // 90% of max
+  if (packetSizeBytes > targetSize) {
     // First truncate trace if present
     while (packetSizeBytes > targetSize && packet.trace && packet.trace.length > 20) {
       packet.trace.pop();
@@ -1480,6 +1960,30 @@ function buildJudgePacket(
     }
     packetJson = JSON.stringify(packet);
     packetSizeBytes = new TextEncoder().encode(packetJson).length;
+
+    // If still large, strip heavy fields from tool interactions
+    if (packetSizeBytes > targetSize) {
+      for (const interaction of packet.toolInteractions) {
+        interaction.result = undefined;
+        interaction.argsRaw = truncateString(interaction.argsRaw, 200);
+        interaction.args = truncateJsonValue(interaction.args, 200) as Record<string, unknown>;
+        interaction.resultSummary = truncateString(interaction.resultSummary, 200);
+      }
+      packetJson = JSON.stringify(packet);
+      packetSizeBytes = new TextEncoder().encode(packetJson).length;
+    }
+
+    // If still large, reduce trace and interactions further
+    if (packetSizeBytes > targetSize) {
+      if (packet.trace && packet.trace.length > 20) {
+        packet.trace = packet.trace.slice(0, 20);
+      }
+      if (packet.toolInteractions.length > 5) {
+        packet.toolInteractions = packet.toolInteractions.slice(0, 5);
+      }
+      packetJson = JSON.stringify(packet);
+      packetSizeBytes = new TextEncoder().encode(packetJson).length;
+    }
   }
 
   return packet;
