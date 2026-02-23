@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import {
   RadarChart,
   Radar,
@@ -16,6 +16,23 @@ export type DimensionResult = {
   summary?: string;
   strengths?: string;
   weaknesses?: string;
+};
+
+type ScorecardDimension = {
+  score: number;
+  reasoning: string;
+  evidenceEventIds?: string[];
+  strengths?: string[];
+  weaknesses?: string[];
+};
+
+type FinalScorecard = {
+  overallScore: number;
+  confidence?: number;
+  dimensions?: Record<string, ScorecardDimension>;
+  strengths?: string[];
+  weaknesses?: string[];
+  missingData?: string[];
 };
 
 export type MetricBreakdown = {
@@ -41,8 +58,91 @@ export type Evaluation = {
   metricBreakdown: MetricBreakdown | null;
   confidence?: number | null;
   geminiJudgement?: GeminiJudgement | null;
+  finalScorecard?: unknown;
   createdAt: Date;
   updatedAt: Date;
+};
+
+type TraceEvent = {
+  id: string;
+  type: string;
+  data?: Record<string, unknown>;
+  timestamp?: string;
+};
+
+type TraceStep = {
+  stepNumber: number;
+  description: string;
+  keyEventIds: string[];
+  timestamp?: string;
+};
+
+type ToolInteraction = {
+  toolCallId: string;
+  toolName: string;
+  args?: Record<string, unknown>;
+  argsRaw?: string;
+  result?: unknown;
+  resultSummary?: string;
+  status: string;
+  eventIds: string[];
+  timestamp?: string;
+};
+
+type TraceError = {
+  message: string;
+  eventIds: string[];
+  timestamp?: string;
+};
+
+type TraceRetry = {
+  attempt: number;
+  eventIds: string[];
+  timestamp?: string;
+};
+
+type RuleFlag = {
+  id?: string;
+  flagType: string;
+  severity: string;
+  message: string;
+  evidenceEventIds: string[];
+};
+
+type RunMetrics = {
+  totalSteps?: number;
+  totalToolCalls?: number;
+  totalErrors?: number;
+  totalRetries?: number;
+  totalDurationMs?: number | null;
+};
+
+type NormalizedTracePayload = {
+  traceSummary?: { steps?: TraceStep[] };
+  toolInteractions?: ToolInteraction[];
+  errors?: TraceError[];
+  retries?: TraceRetry[];
+  metrics?: RunMetrics;
+  ruleFlags?: RuleFlag[];
+  trace?: TraceEvent[];
+};
+
+type JudgePacketPayload = {
+  traceSummary?: { steps?: TraceStep[] };
+  toolInteractions?: ToolInteraction[];
+  errors?: TraceError[];
+  retries?: TraceRetry[];
+  metrics?: RunMetrics;
+  ruleFlags?: RuleFlag[];
+  trace?: TraceEvent[];
+};
+
+type RunTraceSummaryRecord = {
+  normalizedTrace: string;
+};
+
+type RunJudgePacketRecord = {
+  packet?: unknown;
 };
 
 export type Run = {
@@ -51,6 +151,10 @@ export type Run = {
   project?: {
     name: string;
   } | null;
+  traceSummary?: RunTraceSummaryRecord | null;
+  metrics?: RunMetrics | null;
+  ruleFlags?: RuleFlag[] | null;
+  judgePacket?: RunJudgePacketRecord | null;
 };
 
 interface RunViewProps {
@@ -65,6 +169,18 @@ export default function RunView({
   const [run, setRun] = useState<Run>(initialRun);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(
     initialEvaluation
+  );
+  const [traceSummary, setTraceSummary] = useState<RunTraceSummaryRecord | null>(
+    initialRun.traceSummary ?? null
+  );
+  const [metrics, setMetrics] = useState<RunMetrics | null>(
+    initialRun.metrics ?? null
+  );
+  const [ruleFlags, setRuleFlags] = useState<RuleFlag[]>(
+    Array.isArray(initialRun.ruleFlags) ? initialRun.ruleFlags : []
+  );
+  const [judgePacket, setJudgePacket] = useState<RunJudgePacketRecord | null>(
+    initialRun.judgePacket ?? null
   );
 
   const evalTriggeredRef = useRef(false);
@@ -144,6 +260,18 @@ export default function RunView({
         if (data.evaluation) {
           setEvaluation(data.evaluation as Evaluation);
         }
+        if ("traceSummary" in data) {
+          setTraceSummary((data.traceSummary as RunTraceSummaryRecord | null) ?? null);
+        }
+        if ("metrics" in data) {
+          setMetrics((data.metrics as RunMetrics | null) ?? null);
+        }
+        if (Array.isArray(data.ruleFlags)) {
+          setRuleFlags(data.ruleFlags as RuleFlag[]);
+        }
+        if ("judgePacket" in data) {
+          setJudgePacket((data.judgePacket as RunJudgePacketRecord | null) ?? null);
+        }
 
         if (data.run.status === "READY_FOR_JUDGING") {
           triggerJudge();
@@ -169,7 +297,13 @@ export default function RunView({
       </p>
 
       {isDone ? (
-        <ResultState evaluation={evaluation!} run={run} />
+        <ResultState
+          evaluation={evaluation!}
+          traceSummary={traceSummary}
+          metrics={metrics}
+          ruleFlags={ruleFlags}
+          judgePacket={judgePacket}
+        />
       ) : isFailed ? (
         <FailedState status={run.status} />
       ) : (
@@ -225,8 +359,24 @@ function FailedState({ status }: { status: string }) {
   );
 }
 
-function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
+function ResultState({
+  evaluation,
+  traceSummary,
+  metrics,
+  ruleFlags,
+  judgePacket,
+}: {
+  evaluation: Evaluation;
+  traceSummary: RunTraceSummaryRecord | null;
+  metrics: RunMetrics | null;
+  ruleFlags: RuleFlag[];
+  judgePacket: RunJudgePacketRecord | null;
+}) {
   const breakdown = evaluation.metricBreakdown;
+  const scorecard = parseFinalScorecard(evaluation.finalScorecard);
+  const [selectedEvidenceEventIds, setSelectedEvidenceEventIds] = useState<string[]>([]);
+  const [selectedEvidenceLabel, setSelectedEvidenceLabel] = useState<string | null>(null);
+  const timelineRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   if (!breakdown) {
     return (
@@ -239,6 +389,20 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
   }
 
   const score = Math.round(evaluation.totalScore ?? 0);
+  const selectEvidence = (eventIds: string[], sourceLabel: string) => {
+    const normalized = uniqueNonEmptyStrings(eventIds);
+    if (normalized.length === 0) return;
+    setSelectedEvidenceEventIds(normalized);
+    setSelectedEvidenceLabel(sourceLabel);
+    const firstExistingId = normalized.find((id) => timelineRefs.current[id]);
+    if (!firstExistingId) return;
+    window.requestAnimationFrame(() => {
+      timelineRefs.current[firstExistingId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  };
 
   return (
     <div className="space-y-8 mt-6">
@@ -322,6 +486,21 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
         <PanelScoresCard panel={evaluation.geminiJudgement.panel} finalScore={score} />
       )}
 
+      <TraceExplorer
+        traceSummary={traceSummary}
+        metrics={metrics}
+        ruleFlags={ruleFlags}
+        judgePacket={judgePacket}
+        selectedEvidenceEventIds={selectedEvidenceEventIds}
+        selectedEvidenceLabel={selectedEvidenceLabel}
+        onSelectEvidence={selectEvidence}
+        onClearSelection={() => {
+          setSelectedEvidenceEventIds([]);
+          setSelectedEvidenceLabel(null);
+        }}
+        timelineRefs={timelineRefs}
+      />
+
       <div className="space-y-4">
         {Object.entries(breakdown.dimensions).map(
           ([key, dim]: [string, DimensionResult]) => (
@@ -333,9 +512,25 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
                 <h3 className="text-lg font-semibold text-white">
                   {humanizeKey(key)}
                 </h3>
-                <span className="text-sm font-semibold text-purple-300 shrink-0 ml-3">
-                  {dim.score} / 100
-                </span>
+                <div className="flex items-center gap-3 ml-3">
+                  <span className="text-sm font-semibold text-purple-300 shrink-0">
+                    {dim.score} / 100
+                  </span>
+                  {(scorecard?.dimensions?.[key]?.evidenceEventIds?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        selectEvidence(
+                          scorecard?.dimensions?.[key]?.evidenceEventIds ?? [],
+                          `Dimension: ${humanizeKey(key)}`
+                        )
+                      }
+                      className="rounded-lg bg-purple-500/15 px-2.5 py-1 text-xs font-medium text-purple-200 ring-1 ring-purple-400/30 hover:bg-purple-500/25"
+                    >
+                      View evidence ({uniqueNonEmptyStrings(scorecard?.dimensions?.[key]?.evidenceEventIds).length})
+                    </button>
+                  )}
+                </div>
               </div>
 
               {dim.summary && (
@@ -367,6 +562,309 @@ function ResultState({ evaluation }: { evaluation: Evaluation; run: Run }) {
   );
 }
 
+function TraceExplorer({
+  traceSummary,
+  metrics,
+  ruleFlags,
+  judgePacket,
+  selectedEvidenceEventIds,
+  selectedEvidenceLabel,
+  onSelectEvidence,
+  onClearSelection,
+  timelineRefs,
+}: {
+  traceSummary: RunTraceSummaryRecord | null;
+  metrics: RunMetrics | null;
+  ruleFlags: RuleFlag[];
+  judgePacket: RunJudgePacketRecord | null;
+  selectedEvidenceEventIds: string[];
+  selectedEvidenceLabel: string | null;
+  onSelectEvidence: (eventIds: string[], sourceLabel: string) => void;
+  onClearSelection: () => void;
+  timelineRefs: MutableRefObject<Record<string, HTMLDivElement | null>>;
+}) {
+  const normalizedTrace = parseNormalizedTrace(traceSummary?.normalizedTrace);
+  const packet = parseJudgePacket(judgePacket?.packet);
+  const traceEvents = normalizedTrace?.trace ?? packet?.trace ?? [];
+  const traceSteps = normalizedTrace?.traceSummary?.steps ?? packet?.traceSummary?.steps ?? [];
+  const toolInteractions =
+    normalizedTrace?.toolInteractions ?? packet?.toolInteractions ?? [];
+  const errors = normalizedTrace?.errors ?? packet?.errors ?? [];
+  const retries = normalizedTrace?.retries ?? packet?.retries ?? [];
+  const effectiveMetrics = normalizedTrace?.metrics ?? packet?.metrics ?? metrics;
+  const effectiveRuleFlags =
+    (normalizedTrace?.ruleFlags && normalizedTrace.ruleFlags.length > 0
+      ? normalizedTrace.ruleFlags
+      : ruleFlags.length > 0
+        ? ruleFlags
+        : packet?.ruleFlags) ?? [];
+  const selectedSet = new Set(selectedEvidenceEventIds);
+  const missingSelectedIds = selectedEvidenceEventIds.filter(
+    (id) => !traceEvents.some((event) => event.id === id)
+  );
+
+  return (
+    <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Trace explorer</h2>
+          <p className="text-sm text-white/60">
+            Inspect normalized timeline, tool interactions, errors/retries, and jump from evidence-linked scores to source events.
+          </p>
+        </div>
+        {selectedEvidenceEventIds.length > 0 && (
+          <div className="flex items-center gap-2 rounded-xl bg-purple-500/10 px-3 py-2 ring-1 ring-purple-400/20">
+            <span className="text-xs text-purple-200">
+              Highlighting {selectedEvidenceEventIds.length} event{selectedEvidenceEventIds.length === 1 ? "" : "s"}
+              {selectedEvidenceLabel ? ` from ${selectedEvidenceLabel}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="text-xs text-purple-100/80 hover:text-white"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {effectiveMetrics && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricChip label="Steps" value={effectiveMetrics.totalSteps ?? "—"} />
+          <MetricChip label="Tool Calls" value={effectiveMetrics.totalToolCalls ?? "—"} />
+          <MetricChip label="Errors" value={effectiveMetrics.totalErrors ?? "—"} />
+          <MetricChip label="Retries" value={effectiveMetrics.totalRetries ?? "—"} />
+          <MetricChip
+            label="Duration"
+            value={
+              effectiveMetrics.totalDurationMs != null
+                ? formatDurationMs(effectiveMetrics.totalDurationMs)
+                : "—"
+            }
+          />
+        </div>
+      )}
+
+      {effectiveRuleFlags.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-white">Rule flags</h3>
+          <div className="space-y-2">
+            {effectiveRuleFlags.map((flag, index) => {
+              const evidenceIds = uniqueNonEmptyStrings(flag.evidenceEventIds);
+              const severityClass = getSeverityClass(flag.severity);
+              return (
+                <div
+                  key={`${flag.flagType}-${index}`}
+                  className={`rounded-xl p-3 ring-1 ${severityClass}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                        {flag.flagType.replace(/_/g, " ")} · {flag.severity}
+                      </p>
+                      <p className="text-sm text-white/85">{flag.message}</p>
+                    </div>
+                    {evidenceIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSelectEvidence(evidenceIds, `Rule flag: ${flag.flagType}`)
+                        }
+                        className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/15"
+                      >
+                        Jump to evidence ({evidenceIds.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="space-y-4">
+          <TraceSection
+            title="Steps"
+            emptyLabel="No normalized steps available."
+            rows={traceSteps.map((step) => ({
+              key: `step-${step.stepNumber}-${step.timestamp ?? ""}`,
+              title: `Step ${step.stepNumber}`,
+              subtitle: step.description,
+              timestamp: step.timestamp,
+              eventIds: step.keyEventIds,
+            }))}
+            onSelectEvidence={onSelectEvidence}
+          />
+
+          <TraceSection
+            title="Tool interactions"
+            emptyLabel="No tool interactions captured."
+            rows={toolInteractions.map((interaction) => ({
+              key: `${interaction.toolCallId}-${interaction.timestamp ?? ""}`,
+              title: `${interaction.toolName} · ${interaction.status}`,
+              subtitle:
+                interaction.resultSummary ||
+                previewJson(interaction.result ?? interaction.args ?? interaction.argsRaw),
+              timestamp: interaction.timestamp,
+              eventIds: interaction.eventIds,
+            }))}
+            onSelectEvidence={onSelectEvidence}
+          />
+
+          <TraceSection
+            title="Errors & retries"
+            emptyLabel="No errors or retries captured."
+            rows={[
+              ...errors.map((error, index) => ({
+                key: `error-${index}-${error.timestamp ?? ""}`,
+                title: "Error",
+                subtitle: error.message,
+                timestamp: error.timestamp,
+                eventIds: error.eventIds,
+              })),
+              ...retries.map((retry, index) => ({
+                key: `retry-${index}-${retry.timestamp ?? ""}`,
+                title: `Retry attempt ${retry.attempt}`,
+                subtitle: "Repeated tool call detected",
+                timestamp: retry.timestamp,
+                eventIds: retry.eventIds,
+              })),
+            ]}
+            onSelectEvidence={onSelectEvidence}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">Normalized timeline</h3>
+            <span className="text-xs text-white/50">{traceEvents.length} events</span>
+          </div>
+
+          {missingSelectedIds.length > 0 && (
+            <p className="text-xs text-yellow-200/90 rounded-lg bg-yellow-500/10 px-3 py-2 ring-1 ring-yellow-500/20">
+              {missingSelectedIds.length} selected evidence event{missingSelectedIds.length === 1 ? "" : "s"} not present in the rendered trace (likely truncated in judge packet).
+            </p>
+          )}
+
+          {traceEvents.length === 0 ? (
+            <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+              <p className="text-sm text-white/60">
+                No trace events available yet. The parser may still be processing or the packet may be missing trace data.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[34rem] space-y-2 overflow-auto pr-1">
+              {traceEvents.map((event) => {
+                const isHighlighted = selectedSet.has(event.id);
+                return (
+                  <div
+                    key={event.id}
+                    ref={(node) => {
+                      timelineRefs.current[event.id] = node;
+                    }}
+                    className={`rounded-xl p-3 ring-1 transition ${
+                      isHighlighted
+                        ? "bg-purple-500/15 ring-purple-400/45"
+                        : "bg-white/5 ring-white/10"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-white/90">
+                          {event.id}
+                        </p>
+                        <p className="text-sm font-medium text-white">
+                          {event.type}
+                        </p>
+                      </div>
+                      <span className="text-xs text-white/50">
+                        {formatTimestamp(event.timestamp)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-white/65 break-words">
+                      {previewJson(event.data)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TraceSection({
+  title,
+  rows,
+  emptyLabel,
+  onSelectEvidence,
+}: {
+  title: string;
+  rows: Array<{
+    key: string;
+    title: string;
+    subtitle?: string;
+    timestamp?: string;
+    eventIds?: string[];
+  }>;
+  emptyLabel: string;
+  onSelectEvidence: (eventIds: string[], sourceLabel: string) => void;
+}) {
+  return (
+    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <span className="text-xs text-white/50">{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-white/55">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row) => {
+            const evidenceIds = uniqueNonEmptyStrings(row.eventIds);
+            return (
+              <div key={row.key} className="rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-white">{row.title}</p>
+                  <span className="text-xs text-white/45">{formatTimestamp(row.timestamp)}</span>
+                </div>
+                {row.subtitle && (
+                  <p className="mt-1 text-xs leading-relaxed text-white/65 break-words">
+                    {row.subtitle}
+                  </p>
+                )}
+                {evidenceIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectEvidence(evidenceIds, `${title}: ${row.title}`)}
+                    className="mt-2 rounded-md bg-white/10 px-2 py-1 text-xs text-white/85 hover:bg-white/15"
+                  >
+                    Show evidence ({evidenceIds.length})
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricChip({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/10">
+      <p className="text-[11px] uppercase tracking-wide text-white/45">{label}</p>
+      <p className="text-sm font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
 /** Renders pros or cons as a list; backend may send multiple items joined by "; " */
 function ProsConsList({ value }: { value?: string }) {
   if (!value || !value.trim()) return <p className="text-sm text-white/50">—</p>;
@@ -386,6 +884,82 @@ function ProsConsList({ value }: { value?: string }) {
 
 function humanizeKey(key: string) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function parseFinalScorecard(value: unknown): FinalScorecard | null {
+  if (!value) return null;
+  try {
+    const parsed =
+      typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as FinalScorecard;
+  } catch {
+    return null;
+  }
+}
+
+function parseNormalizedTrace(value?: string): NormalizedTracePayload | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as NormalizedTracePayload;
+  } catch {
+    return null;
+  }
+}
+
+function parseJudgePacket(value: unknown): JudgePacketPayload | null {
+  if (!value) return null;
+  try {
+    const parsed =
+      typeof value === "string" ? (JSON.parse(value) as unknown) : value;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as JudgePacketPayload;
+  } catch {
+    return null;
+  }
+}
+
+function uniqueNonEmptyStrings(values?: string[]) {
+  return [...new Set((values ?? []).filter((value): value is string => Boolean(value?.trim())))];
+}
+
+function previewJson(value: unknown) {
+  if (value == null) return "—";
+  try {
+    const raw = typeof value === "string" ? value : JSON.stringify(value);
+    return raw.length > 220 ? `${raw.slice(0, 220)}…` : raw;
+  } catch {
+    return String(value);
+  }
+}
+
+function formatTimestamp(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatDurationMs(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  if (value < 1000) return `${Math.round(value)} ms`;
+  const seconds = value / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function getSeverityClass(severity: string) {
+  switch (severity.toLowerCase()) {
+    case "high":
+      return "bg-rose-500/10 ring-rose-500/20";
+    case "medium":
+      return "bg-yellow-500/10 ring-yellow-500/20";
+    default:
+      return "bg-sky-500/10 ring-sky-500/20";
+  }
 }
 
 const AGREEMENT_THRESHOLD = 5;
