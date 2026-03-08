@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceModelConfig } from "@/lib/modelConfig";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,32 +31,8 @@ const RATE_LIMIT_CONFIG = {
   },
 };
 
-/** Primary evaluator (used as main/reference). Free plan: RPM 30, RPD 1K, TPM 12K, TPD 100K */
-const GROQ_MODEL_PRIMARY = "llama-3.3-70b-versatile";
-/** Verifier model. Free plan: RPM 30, RPD 14.4K, TPM 6K, TPD 500K */
-const GROQ_MODEL_VERIFIER = "llama-3.1-8b-instant";
-
-/**
- * Panel of models from the free plan only. Limits from Free Plan table:
- * - llama-3.3-70b-versatile: RPM 30, RPD 1K, TPM 12K, TPD 100K
- * - llama-3.1-8b-instant: RPM 30, RPD 14.4K, TPM 6K, TPD 500K
- * - groq/compound-mini: RPM 30, RPD 250, TPM 70K
- * - groq/compound: RPM 30, RPD 250, TPM 70K
- * - meta-llama/llama-4-scout-17b-16e-instruct: RPM 30, RPD 1K, TPM 30K, TPD 500K
- * - qwen/qwen3-32b: RPM 60, RPD 1K, TPM 6K, TPD 500K
- */
-const GROQ_PANEL_MODELS = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-  "groq/compound-mini",
-  "groq/compound",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "qwen/qwen3-32b",
-];
-
 /** Per-model last request time for free-plan RPM adherence */
 const lastRequestByModel = new Map<string, number>();
-let lastGroqVerifierRequest = 0;
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -171,9 +148,8 @@ function extractRetryAfter(error: unknown): number | null {
 
 async function ensureRateLimit(provider: "groqEvaluator" | "groqVerifier", modelId?: string): Promise<void> {
   const config = RATE_LIMIT_CONFIG[provider];
-  const lastRequest = provider === "groqVerifier"
-    ? lastGroqVerifierRequest
-    : (modelId ? lastRequestByModel.get(modelId) ?? 0 : 0);
+  const rateLimitKey = `${provider}:${modelId ?? "default"}`;
+  const lastRequest = lastRequestByModel.get(rateLimitKey) ?? 0;
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequest;
 
@@ -182,11 +158,7 @@ async function ensureRateLimit(provider: "groqEvaluator" | "groqVerifier", model
     await sleep(waitTime);
   }
 
-  if (provider === "groqVerifier") {
-    lastGroqVerifierRequest = Date.now();
-  } else if (modelId) {
-    lastRequestByModel.set(modelId, Date.now());
-  }
+  lastRequestByModel.set(rateLimitKey, Date.now());
 }
 
 // ─── Groq API callers ─────────────────────────────────────────────────────────
@@ -327,9 +299,10 @@ async function callGroqEvaluatorWithModel(
 async function callGroqEvaluator(
   judgePacket: JudgePacket,
   apiKey: string,
+  primaryModel: string,
   rubric?: any
 ): Promise<Scorecard> {
-  return callGroqEvaluatorWithModel(judgePacket, apiKey, GROQ_MODEL_PRIMARY, rubric);
+  return callGroqEvaluatorWithModel(judgePacket, apiKey, primaryModel, rubric);
 }
 
 /**
@@ -340,11 +313,12 @@ async function callGroqEvaluator(
 async function runPanelEvaluators(
   judgePacket: JudgePacket,
   apiKey: string,
+  panelModels: string[],
   rubric?: any
 ): Promise<Array<{ model: string; scorecard: Scorecard }>> {
   const results: Array<{ model: string; scorecard: Scorecard }> = [];
 
-  for (const modelId of GROQ_PANEL_MODELS) {
+  for (const modelId of panelModels) {
     try {
       await sleep(MIN_DELAY_MS);
       const scorecard = await callGroqEvaluatorWithModel(judgePacket, apiKey, modelId, rubric);
@@ -363,6 +337,7 @@ async function callGroqVerifier(
   judgePacket: JudgePacket,
   evaluatorScorecard: Scorecard,
   apiKey: string,
+  verifierModel: string,
   rubric?: any
 ): Promise<Scorecard> {
   const prompt = buildGroqVerifierPrompt(judgePacket, evaluatorScorecard, rubric);
@@ -372,7 +347,7 @@ async function callGroqVerifier(
 
   for (let attempt = 0; attempt < config.maxRetries; attempt++) {
     try {
-      await ensureRateLimit("groqVerifier");
+      await ensureRateLimit("groqVerifier", verifierModel);
 
       const requestBody: {
         model: string;
@@ -380,7 +355,7 @@ async function callGroqVerifier(
         temperature: number;
         response_format?: { type: string };
       } = {
-        model: GROQ_MODEL_VERIFIER,
+        model: verifierModel,
         messages: [
           {
             role: "user",
@@ -391,7 +366,7 @@ async function callGroqVerifier(
         response_format: { type: "json_object" },
       };
 
-      console.log(`Calling Groq verifier with model: ${GROQ_MODEL_VERIFIER}`);
+      console.log(`Calling Groq verifier with model: ${verifierModel}`);
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -1123,6 +1098,11 @@ export async function judgeRun(
       testSuiteId: true,
       rubricId: true,
       status: true,
+      project: {
+        select: {
+          workspaceId: true,
+        },
+      },
     },
   });
 
@@ -1270,12 +1250,16 @@ export async function judgeRun(
   if (!groqApiKey) {
     throw new Error("Missing GROQ_API_KEY environment variable");
   }
+  const modelConfig = await resolveWorkspaceModelConfig(run.project.workspaceId);
+  const judgePanelModels = modelConfig.judgePanelModels;
+  const primaryModel = modelConfig.judgePrimaryModel;
+  const verifierModel = modelConfig.judgeVerifierModel;
 
   // Run multi-model panel (all free GROQ models)
   const packetSizeForPrompt = new TextEncoder().encode(JSON.stringify(judgePacket)).length;
   console.log(
     "[judge_run] Running panel: models=",
-    GROQ_PANEL_MODELS.length,
+    judgePanelModels.length,
     "packetSize=",
     packetSizeForPrompt,
     "bytes"
@@ -1283,12 +1267,12 @@ export async function judgeRun(
 
   let panelResults: Array<{ model: string; scorecard: Scorecard }>;
   try {
-    panelResults = await runPanelEvaluators(judgePacket, groqApiKey, rubric);
+    panelResults = await runPanelEvaluators(judgePacket, groqApiKey, judgePanelModels, rubric);
     console.log(
       "[judge_run] Panel complete: succeeded=",
       panelResults.length,
       "/",
-      GROQ_PANEL_MODELS.length
+      judgePanelModels.length
     );
   } catch (panelError) {
     const errorMessage = panelError instanceof Error ? panelError.message : String(panelError);
@@ -1309,18 +1293,23 @@ export async function judgeRun(
   }
 
   if (panelResults.length === 0) {
-    console.error("[judge_run] All panel models failed: count=", GROQ_PANEL_MODELS.length);
+    console.error("[judge_run] All panel models failed: count=", judgePanelModels.length);
     console.log(
       "[judge_run] Attempting single-model fallback with primary model:",
-      GROQ_MODEL_PRIMARY
+      primaryModel
     );
     try {
       await sleep(500);
-      const fallbackScorecard = await callGroqEvaluator(judgePacket, groqApiKey, rubric);
-      panelResults = [{ model: `${GROQ_MODEL_PRIMARY} (fallback)`, scorecard: fallbackScorecard }];
+      const fallbackScorecard = await callGroqEvaluator(
+        judgePacket,
+        groqApiKey,
+        primaryModel,
+        rubric
+      );
+      panelResults = [{ model: `${primaryModel} (fallback)`, scorecard: fallbackScorecard }];
       console.log(
         "[judge_run] Single-model fallback succeeded:",
-        GROQ_MODEL_PRIMARY,
+        primaryModel,
         "score=",
         fallbackScorecard.overallScore
       );
@@ -1347,7 +1336,13 @@ export async function judgeRun(
   let groqVerifierJudgement: Scorecard | null = null;
   try {
     await sleep(500);
-    const verifierPromise = callGroqVerifier(judgePacket, primaryScorecard, groqApiKey, rubric);
+    const verifierPromise = callGroqVerifier(
+      judgePacket,
+      primaryScorecard,
+      groqApiKey,
+      verifierModel,
+      rubric
+    );
     const verifierTimeout = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("Groq verifier call timeout")), 25000);
     });
