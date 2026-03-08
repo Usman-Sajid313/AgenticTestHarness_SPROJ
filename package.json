@@ -10,7 +10,13 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:db:up": "docker compose -f docker-compose.test.yml up -d",
+    "test:db:down": "docker compose -f docker-compose.test.yml down",
+    "test:local:setup": "node -e \"const fs=require('fs'); if(!fs.existsSync('.env.test')) fs.copyFileSync('.env.test.example','.env.test');\"",
+    "test:local": "npm run test:local:setup && docker compose -f docker-compose.test.yml up -d && npx wait-on tcp:localhost:5434 && npx dotenv-cli -e .env.test -- npx prisma db push && npm run test",
+    "test:local:full": "npm run test:local:setup && docker compose -f docker-compose.test.yml up -d && npx wait-on tcp:localhost:5434 && npx dotenv-cli -e .env.test -- npx prisma db push && npm run build && npx start-server-and-test \"npx dotenv-cli -e .env.test -- npm run start\" http://localhost:3000 \"npm run test\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -37,8 +43,12 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.7",
+    "dotenv-cli": "^7.4.2",
     "prisma": "^6.18.0",
+    "start-server-and-test": "^2.0.3",
     "tailwindcss": "^4",
-    "typescript": "5.9.3"
+    "wait-on": "^8.0.1",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
   }
 }
