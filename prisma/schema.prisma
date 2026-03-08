@@ -143,8 +143,26 @@ model Workspace {
   tools              Tool[]
   testSuites         TestSuite[]
   evaluationRubrics  EvaluationRubric[]
+  modelConfig        WorkspaceModelConfig?
 
   @@unique([name])
+}
+
+model WorkspaceModelConfig {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  evaluatorProvider  String   @default("gemini")
+  evaluatorModel     String   @default("gemini-2.5-flash")
+  judgeProvider      String   @default("groq")
+  judgePrimaryModel  String   @default("llama-3.3-70b-versatile")
+  judgeVerifierModel String   @default("llama-3.1-8b-instant")
+  judgePanelModels   String[] @default(["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "groq/compound-mini", "groq/compound", "meta-llama/llama-4-scout-17b-16e-instruct", "qwen/qwen3-32b"])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 model Membership {

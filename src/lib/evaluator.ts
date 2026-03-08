@@ -1,13 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { downloadFile } from "@/lib/storage";
+import { resolveWorkspaceModelConfig } from "@/lib/modelConfig";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API!;
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
-});
 
 export type DimensionEval = {
   score: number;
@@ -54,6 +48,17 @@ export async function evaluateRunFromLogfile(runId: string) {
   }
 
   const logfileText = logfileBuffer.toString("utf-8");
+  const modelConfig = await resolveWorkspaceModelConfig(run.project.workspaceId);
+  const geminiApiKey = process.env.GOOGLE_GEMINI_API;
+
+  if (!geminiApiKey) {
+    throw new Error("Missing GOOGLE_GEMINI_API environment variable");
+  }
+
+  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  const model = genAI.getGenerativeModel({
+    model: modelConfig.evaluatorModel,
+  });
 
   const summary = {
     toolCalls: (logfileText.match(/\[TOOL_CALL]/g) || []).length,

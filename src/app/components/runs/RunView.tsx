@@ -324,11 +324,11 @@ function AnalyzingState({ status }: { status: string }) {
     },
     READY_FOR_JUDGING: {
       title: "Ready for evaluation",
-      description: "Starting AI evaluation with Gemini and Groq.",
+      description: "Starting AI evaluation with the configured evaluator and judge models.",
     },
     JUDGING: {
       title: "Evaluating with AI judges...",
-      description: "Gemini and Groq are analyzing the run and computing scores.",
+      description: "The configured judge models are analyzing the run and computing scores.",
     },
   };
 
