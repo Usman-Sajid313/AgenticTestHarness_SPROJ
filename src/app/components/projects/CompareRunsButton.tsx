@@ -30,7 +30,7 @@ export default function CompareRunsButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl bg-white/10 px-6 py-3 text-white font-medium ring-1 ring-white/20 hover:bg-white/15 transition"
+        className="rounded-lg bg-zinc-800 text-zinc-300 px-6 py-3 font-medium hover:bg-zinc-700 transition"
       >
         Compare Runs
       </button>

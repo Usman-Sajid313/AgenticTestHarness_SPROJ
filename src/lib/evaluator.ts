@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSupabaseServerClient } from "@/lib/supabase";
+import { downloadFile } from "@/lib/storage";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API!;
@@ -33,8 +33,6 @@ type MaybeGeminiJSON =
 
 
 export async function evaluateRunFromLogfile(runId: string) {
-  const supabaseServerClient = getSupabaseServerClient();
-
   const run = await prisma.agentRun.findUnique({
     where: { id: runId },
     include: { logfiles: true, project: true, testSuite: true },
@@ -45,17 +43,17 @@ export async function evaluateRunFromLogfile(runId: string) {
 
   const logfile = run.logfiles[0];
 
-  const { data, error } = await supabaseServerClient.storage
-    .from("agent-logs")
-    .download(logfile.storageKey);
-
-  if (error) {
+  let logfileBuffer: Buffer;
+  try {
+    logfileBuffer = await downloadFile(logfile.storageKey);
+  } catch (err) {
     throw new Error(
-      "Failed to download logfile from storage: " + error.message
+      "Failed to download logfile from storage: " +
+        (err instanceof Error ? err.message : String(err))
     );
   }
 
-  const logfileText = await data.text();
+  const logfileText = logfileBuffer.toString("utf-8");
 
   const summary = {
     toolCalls: (logfileText.match(/\[TOOL_CALL]/g) || []).length,

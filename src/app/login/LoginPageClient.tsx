@@ -2,27 +2,18 @@
 
 import { useState } from 'react';
 
-type FormState = { name: string; email: string; password: string };
+type FormState = { identifier: string; password: string };
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
-export default function SignupPage() {
-  const [form, setForm] = useState<FormState>({ name: '', email: '', password: '' });
+export default function LoginPageClient({ redirectTo }: { redirectTo: string }) {
+  const [form, setForm] = useState<FormState>({ identifier: '', password: '' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
   function validateLocal(data: FormState): FieldErrors {
     const e: FieldErrors = {};
-    if (!data.name || data.name.trim().length < 2) e.name = 'Name must be at least 2 characters';
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim());
-    if (!emailOk) e.email = 'Enter a valid email';
-    const p = data.password;
-    if (!p || p.length < 8) e.password = 'Use 8+ characters';
-    else {
-      if (!/[A-Z]/.test(p)) e.password = 'Add an uppercase letter';
-      else if (!/[a-z]/.test(p)) e.password = 'Add a lowercase letter';
-      else if (!/[0-9]/.test(p)) e.password = 'Add a number';
-      else if (!/[^A-Za-z0-9]/.test(p)) e.password = 'Add a symbol';
-    }
+    if (!data.identifier || data.identifier.trim().length < 2) e.identifier = 'Enter your name';
+    if (!data.password || data.password.length < 8) e.password = 'Enter your password';
     return e;
   }
 
@@ -34,7 +25,7 @@ export default function SignupPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -42,16 +33,16 @@ export default function SignupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 409) {
-          setErrors({ email: data?.error ?? 'Email already in use' });
+        if (data?.field) {
+          setErrors({ [data.field as keyof FormState]: data.error ?? 'Invalid credentials' });
         } else {
-          setErrors({ password: data?.error ?? 'Signup failed' });
+          setErrors({ password: data?.error ?? 'Invalid credentials' });
         }
         setSubmitting(false);
         return;
       }
 
-      window.location.assign('/');
+      window.location.assign(redirectTo);
     } catch {
       setErrors({ password: 'Network error. Please try again.' });
       setSubmitting(false);
@@ -78,36 +69,20 @@ export default function SignupPage() {
           <section className="flex min-h-full items-center justify-center p-8 sm:p-10">
             <div className="w-full max-w-sm">
               <header className="mb-6 text-center">
-                <h2 className="text-2xl font-medium text-zinc-100">Sign up</h2>
-                <p className="mt-1 text-sm text-zinc-400">Create your account to start testing agents.</p>
+                <h2 className="text-2xl font-medium text-zinc-100">Log in</h2>
+                <p className="mt-1 text-sm text-zinc-400">Welcome back. Enter your details to continue.</p>
               </header>
 
               <form onSubmit={onSubmit} className="space-y-5">
                 <Field
                   label="Name"
-                  type="text"
                   placeholder="Ada Lovelace"
-                  value={form.name}
+                  value={form.identifier}
                   onChange={(v) => {
-                    setForm({ ...form, name: v });
-                    if (errors.name) setErrors({ ...errors, name: undefined });
+                    setForm({ ...form, identifier: v });
+                    if (errors.identifier) setErrors({ ...errors, identifier: undefined });
                   }}
-                  error={errors.name}
-                  required
-                  minLength={2}
-                  maxLength={100}
-                />
-
-                <Field
-                  label="Email"
-                  type="email"
-                  placeholder="ada@example.com"
-                  value={form.email}
-                  onChange={(v) => {
-                    setForm({ ...form, email: v });
-                    if (errors.email) setErrors({ ...errors, email: undefined });
-                  }}
-                  error={errors.email}
+                  error={errors.identifier}
                   required
                 />
 
@@ -119,7 +94,6 @@ export default function SignupPage() {
                     setForm({ ...form, password: v });
                     if (errors.password) setErrors({ ...errors, password: undefined });
                   }}
-                  hint="8+ chars with uppercase, lowercase, number, and symbol."
                   error={errors.password}
                   required
                   minLength={8}
@@ -134,14 +108,14 @@ export default function SignupPage() {
                     hover:bg-zinc-200 active:scale-[0.99] disabled:opacity-60
                   "
                 >
-                  {submitting ? 'Creating account…' : 'Create account'}
+                  {submitting ? 'Signing in…' : 'Sign in'}
                   <span className="transition-transform group-hover:translate-x-0.5">→</span>
                 </button>
 
                 <p className="text-center text-sm text-zinc-400">
-                  Already have an account?{' '}
-                  <a href="/login" className="text-zinc-400 underline underline-offset-4 hover:text-zinc-100">
-                    Log in
+                  Don&apos;t have an account?{' '}
+                  <a href="/signup" className="text-zinc-400 underline underline-offset-4 hover:text-zinc-100">
+                    Sign up
                   </a>
                 </p>
               </form>
@@ -152,7 +126,6 @@ export default function SignupPage() {
     </main>
   );
 }
-
 
 type FieldBaseProps = {
   label: string;
@@ -174,8 +147,7 @@ function Field({
   required,
   minLength,
   maxLength,
-  type = 'text',
-}: FieldBaseProps & { type?: string }) {
+}: FieldBaseProps) {
   const base =
     'w-full rounded-lg border px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition ' +
     'bg-zinc-900 border-zinc-800 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600';
@@ -187,7 +159,7 @@ function Field({
     <div className="space-y-1.5">
       <label className="block text-sm text-zinc-400">{label}</label>
       <input
-        type={type}
+        type="text"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -195,6 +167,7 @@ function Field({
         minLength={minLength}
         maxLength={maxLength}
         className={error ? err : base}
+        autoComplete="username"
       />
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
@@ -210,8 +183,7 @@ function PasswordField({
   required,
   minLength,
   maxLength,
-  hint,
-}: FieldBaseProps & { hint?: string }) {
+}: FieldBaseProps) {
   const [visible, setVisible] = useState(false);
 
   const base =
@@ -234,6 +206,7 @@ function PasswordField({
           minLength={minLength}
           maxLength={maxLength}
           className={error ? err : base}
+          autoComplete="current-password"
         />
         <button
           type="button"
@@ -248,7 +221,6 @@ function PasswordField({
           {visible ? 'Hide' : 'Show'}
         </button>
       </div>
-      {hint && !error && <p className="text-xs text-zinc-500">{hint}</p>}
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { z, ZodError } from 'zod';
 import bcrypt from 'bcryptjs';
 import { signAuthJWT } from '@/lib/jwt';
+import { authCookieName, authCookieOptions } from '@/lib/authCookie';
 
 const SignupSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
@@ -68,13 +69,9 @@ export async function POST(req: Request) {
 
     const res = NextResponse.json({ ok: true });
     res.cookies.set({
-      name: '__auth',
+      name: authCookieName(),
       value: token,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-      maxAge: Number(process.env.JWT_EXPIRES_DAYS ?? '14') * 24 * 60 * 60,
+      ...authCookieOptions(req, Number(process.env.JWT_EXPIRES_DAYS ?? '14') * 24 * 60 * 60),
     });
 
     return res;

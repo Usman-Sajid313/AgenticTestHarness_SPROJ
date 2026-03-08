@@ -14,7 +14,7 @@ export default function StartRunButton({ projectId }: StartRunButtonProps) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl bg-purple-600 px-6 py-3 text-white font-medium hover:bg-purple-700 transition"
+        className="rounded-lg bg-zinc-100 text-zinc-900 px-6 py-3 font-medium hover:bg-zinc-200 transition"
       >
         Start New Run
       </button>

@@ -35,7 +35,7 @@ type ScoreTrendChartProps = {
 };
 
 const DIMENSION_COLORS = [
-  "#a855f7", // purple
+  "#6366f1", // indigo
   "#e879f9", // fuchsia
   "#22d3ee", // cyan
   "#34d399", // emerald
@@ -119,8 +119,8 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
 
   if (chartData.length === 0) {
     return (
-      <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl">
-        <p className="text-white/70">No completed evaluations yet. Run evaluations will appear here.</p>
+      <div className="mt-10 rounded-xl bg-zinc-900 border border-zinc-800 p-10 text-center">
+        <p className="text-zinc-400">No completed evaluations yet. Run evaluations will appear here.</p>
       </div>
     );
   }
@@ -141,9 +141,9 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
         : null;
 
     return (
-      <div className="rounded-lg bg-black/90 border border-white/20 p-3 shadow-xl backdrop-blur-sm min-w-[180px]">
-        <p className="text-xs text-white/60 mb-1">{data.date}</p>
-        <p className="text-sm font-semibold text-purple-300">
+      <div className="rounded-lg bg-zinc-900 border border-zinc-700 p-3 shadow-xl min-w-[180px]">
+        <p className="text-xs text-zinc-500 mb-1">{data.date}</p>
+        <p className="text-sm font-semibold text-zinc-100">
           Score: <span className="text-white">{data.score}/100</span>
           {delta !== null && (
             <span className={delta >= 0 ? "text-emerald-400" : "text-rose-400"}>
@@ -155,11 +155,11 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
         {showDimensions &&
           dimensionKeys.length > 0 &&
           dimensionKeys.map((key) => (
-            <p key={key} className="text-xs text-white/70 mt-0.5">
+            <p key={key} className="text-xs text-zinc-400 mt-0.5">
               {humanizeDimensionKey(key)}: {(data[key] ?? "—") as number}/100
             </p>
           ))}
-        <p className="text-xs text-white/40 mt-1 font-mono">{data.runId.slice(0, 8)}...</p>
+        <p className="text-xs text-zinc-600 mt-1 font-mono">{data.runId.slice(0, 8)}...</p>
       </div>
     );
   };
@@ -169,17 +169,17 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
   );
 
   return (
-    <div className="mt-10 rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
+    <div className="mt-10 rounded-xl bg-zinc-900 border border-zinc-800 p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">Score Trend</h2>
-          <p className="mt-1 text-sm text-white/60">
+          <p className="mt-1 text-sm text-zinc-500">
             Overall and per-dimension progression over time
           </p>
         </div>
         <div className="flex items-center gap-8">
           {dimensionKeys.length > 0 && (
-            <label className="flex items-center gap-2.5 text-sm text-white/70 cursor-pointer select-none">
+            <label className="flex items-center gap-2.5 text-sm text-zinc-400 cursor-pointer select-none">
               <span className="relative inline-flex h-5 w-9 shrink-0">
                 <input
                   type="checkbox"
@@ -187,15 +187,15 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
                   onChange={(e) => setShowDimensions(e.target.checked)}
                   className="peer sr-only"
                 />
-                <span className="absolute inset-0 rounded-full bg-white/10 ring-1 ring-white/20 transition-colors peer-checked:bg-purple-500/80 peer-checked:ring-purple-400/50" />
+                <span className="absolute inset-0 rounded-full bg-zinc-700 transition-colors peer-checked:bg-indigo-500" />
                 <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white/90 shadow transition-transform peer-checked:translate-x-4" />
               </span>
-              <span className="text-white/80">Show dimensions</span>
+              <span className="text-zinc-300">Show dimensions</span>
             </label>
           )}
-          <div className="text-right pl-2 border-l border-white/10">
-            <p className="text-xs text-white/40">Average</p>
-            <p className="text-lg font-semibold text-purple-300">{avgScore}/100</p>
+          <div className="text-right pl-2 border-l border-zinc-800">
+            <p className="text-xs text-zinc-500">Average</p>
+            <p className="text-lg font-semibold text-zinc-100">{avgScore}/100</p>
           </div>
         </div>
       </div>
@@ -208,27 +208,27 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
           >
             <defs>
               <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#a855f7" stopOpacity={0.05} />
+                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.1)"
+              stroke="rgba(63, 63, 70, 0.5)"
               vertical={false}
             />
             <XAxis
               dataKey="index"
-              stroke="rgba(255, 255, 255, 0.4)"
+              stroke="rgba(161, 161, 170, 0.4)"
               style={{ fontSize: "12px" }}
-              tick={{ fill: "rgba(255, 255, 255, 0.6)" }}
+              tick={{ fill: "rgba(161, 161, 170, 0.6)" }}
               allowDuplicatedCategory={false}
             />
             <YAxis
               domain={[0, 100]}
-              stroke="rgba(255, 255, 255, 0.4)"
+              stroke="rgba(161, 161, 170, 0.4)"
               style={{ fontSize: "12px" }}
-              tick={{ fill: "rgba(255, 255, 255, 0.6)" }}
+              tick={{ fill: "rgba(161, 161, 170, 0.6)" }}
               width={40}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -236,11 +236,11 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
               type="monotone"
               dataKey="score"
               name="Overall"
-              stroke="#a855f7"
+              stroke="#6366f1"
               strokeWidth={2}
               fill="url(#scoreGradient)"
-              dot={{ fill: "#a855f7", r: 4, strokeWidth: 2, stroke: "#000" }}
-              activeDot={{ r: 6, fill: "#f472b6", stroke: "#fff", strokeWidth: 2 }}
+              dot={{ fill: "#6366f1", r: 4, strokeWidth: 2, stroke: "#000" }}
+              activeDot={{ r: 6, fill: "#818cf8", stroke: "#fff", strokeWidth: 2 }}
             />
             {showDimensions &&
               dimensionKeys.map((key, i) => (
@@ -260,10 +260,10 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-y-2 text-xs text-white/60">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-y-2 text-xs text-zinc-500">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 max-w-2xl">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="h-2 w-2 rounded-full bg-purple-500" aria-hidden />
+            <div className="h-2 w-2 rounded-full bg-indigo-500" aria-hidden />
             <span>Overall</span>
           </div>
           {dimensionKeys.length > 0 &&
@@ -279,7 +279,7 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
               </div>
             ))}
         </div>
-        <div className="shrink-0 text-white/40">
+        <div className="shrink-0 text-zinc-600">
           {chartData.length} {chartData.length === 1 ? "evaluation" : "evaluations"}
           {baselineScore != null && " · Baseline set"}
         </div>
@@ -287,4 +287,3 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
     </div>
   );
 }
-

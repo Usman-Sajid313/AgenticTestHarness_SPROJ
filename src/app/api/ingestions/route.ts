@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
+import { parseRun } from "@/lib/parser";
 
 type IngestionRequest = {
   runId?: string;
@@ -26,6 +27,14 @@ export async function POST(req: Request) {
   }
   const runId = body.runId?.trim();
   const sourceType = body.sourceType?.trim() || "generic_jsonl";
+  const formatHint =
+    typeof body.formatHint === "string" && body.formatHint.trim()
+      ? body.formatHint.trim()
+      : undefined;
+  const mappingConfig =
+    body.mappingConfig && typeof body.mappingConfig === "object"
+      ? body.mappingConfig
+      : null;
 
   if (!runId) {
     return NextResponse.json({ error: "runId is required" }, { status: 400 });
@@ -60,9 +69,9 @@ export async function POST(req: Request) {
       runId: run.id,
       projectId: run.projectId,
       sourceType,
-      formatHint: body.formatHint || null,
+      formatHint: formatHint ?? null,
       mappingConfig:
-        (body.mappingConfig as Prisma.InputJsonValue | undefined) || undefined,
+        (mappingConfig as Prisma.InputJsonValue | undefined) || undefined,
       fileRef: body.fileRef || logfile.storageKey,
       status: "CREATED",
     },
@@ -74,9 +83,9 @@ export async function POST(req: Request) {
       metadata: {
         ...(logfile.metadata as Record<string, unknown> | null),
         sourceType,
-        formatHint: body.formatHint || null,
+        formatHint: formatHint ?? null,
         mappingConfig:
-          (body.mappingConfig as Prisma.InputJsonValue | null) || null,
+          (mappingConfig as Prisma.InputJsonValue | null) || null,
         ingestionId: ingestion.id,
       } as Prisma.InputJsonValue,
     },
@@ -106,36 +115,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/parse_run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-      },
-      body: JSON.stringify({
-        runId: run.id,
-        ingestionId: ingestion.id,
-        sourceType,
-        formatHint: body.formatHint || null,
-        mappingConfig: body.mappingConfig || null,
-      }),
+    const data = await parseRun({
+      runId: run.id,
+      ingestionId: ingestion.id,
+      sourceType,
+      formatHint,
+      mappingConfig,
     });
-
-    const responseText = await response.text();
-    let data: unknown;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { raw: responseText };
-    }
-
-    if (!response.ok) {
-      throw new Error(`Function returned ${response.status}: ${responseText}`);
-    }
 
     return NextResponse.json({
       ingestionId: ingestion.id,

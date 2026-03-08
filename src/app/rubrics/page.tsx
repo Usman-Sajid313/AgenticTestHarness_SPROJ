@@ -93,10 +93,10 @@ export default function RubricsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-white/60">Loading rubrics...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-zinc-600 border-t-zinc-100 mx-auto mb-4"></div>
+          <p className="text-zinc-500">Loading rubrics...</p>
         </div>
       </div>
     );
@@ -104,30 +104,30 @@ export default function RubricsPage() {
 
   if (!workspaceId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
         <div className="text-center max-w-md">
-          <p className="text-white/80 mb-4">You are not in any workspace. Rubrics are scoped to a workspace.</p>
-          <Link href="/" className="text-purple-400 hover:text-purple-300 transition">← Back to Dashboard</Link>
+          <p className="text-zinc-400 mb-4">You are not in any workspace. Rubrics are scoped to a workspace.</p>
+          <Link href="/" className="text-indigo-400 hover:text-indigo-300 transition">← Back to Dashboard</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="container mx-auto px-6 py-12">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+            <h1 className="text-2xl font-semibold text-zinc-100 mb-2">
               Evaluation Rubrics
             </h1>
-            <p className="text-white/60">
+            <p className="text-zinc-500">
               Define custom evaluation criteria for your AI agent tests
             </p>
           </div>
           <Link
             href="/rubrics/new"
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition shadow-lg shadow-purple-500/25"
+            className="px-6 py-3 bg-zinc-100 text-zinc-900 hover:bg-zinc-200 rounded-lg font-medium transition"
           >
             + Create Rubric
           </Link>
@@ -135,14 +135,13 @@ export default function RubricsPage() {
 
         {rubrics.length === 0 ? (
           <div className="text-center py-20">
-            <div className="text-6xl mb-4">📋</div>
-            <h2 className="text-2xl font-semibold mb-2">No rubrics yet</h2>
-            <p className="text-white/60 mb-6">
+            <h2 className="text-2xl font-semibold text-zinc-100 mb-2">No rubrics yet</h2>
+            <p className="text-zinc-500 mb-6">
               Create your first evaluation rubric to get started
             </p>
             <Link
               href="/rubrics/new"
-              className="inline-block px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition"
+              className="inline-block px-6 py-3 bg-zinc-100 text-zinc-900 hover:bg-zinc-200 rounded-lg font-medium transition"
             >
               Create Rubric
             </Link>
@@ -157,24 +156,24 @@ export default function RubricsPage() {
               return (
                 <div
                   key={rubric.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 hover:border-purple-500/30 transition"
+                  className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 hover:border-zinc-700 transition"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold">{rubric.name}</h3>
+                        <h3 className="text-xl font-semibold text-zinc-100">{rubric.name}</h3>
                         {rubric.isDefault && (
-                          <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-lg">
+                          <span className="bg-indigo-500/10 text-indigo-400 text-xs rounded-md px-2 py-0.5">
                             Default
                           </span>
                         )}
                       </div>
                       {rubric.description && (
-                        <p className="text-white/60 text-sm mb-3">
+                        <p className="text-zinc-400 text-sm mb-3">
                           {rubric.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-4 text-sm text-white/50">
+                      <div className="flex items-center gap-4 text-sm text-zinc-500">
                         <span>{dimensionCount} dimensions</span>
                         <span>•</span>
                         <span>
@@ -191,7 +190,7 @@ export default function RubricsPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/rubrics/${rubric.id}/edit`}
-                        className="px-4 py-2 bg-white/5 rounded-lg hover:bg-white/10 transition text-sm"
+                        className="px-4 py-2 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition text-sm"
                       >
                         Edit
                       </Link>
@@ -199,8 +198,8 @@ export default function RubricsPage() {
                         onClick={() => handleDelete(rubric.id)}
                         className={`px-4 py-2 rounded-lg text-sm transition ${
                           deleteConfirm === rubric.id
-                            ? "bg-red-500 hover:bg-red-600"
-                            : "bg-white/5 hover:bg-red-500/20 text-red-400"
+                            ? "bg-red-500 text-white hover:bg-red-600"
+                            : "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20"
                         }`}
                         disabled={
                           rubric._count.testSuites > 0 || rubric._count.runs > 0
@@ -216,10 +215,10 @@ export default function RubricsPage() {
                       {rubric.dimensions.map((dim, idx) => (
                         <div
                           key={idx}
-                          className="px-3 py-1 bg-white/5 rounded-lg text-sm"
+                          className="bg-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-0.5"
                         >
-                          <span className="text-white/80">{dim.name}</span>
-                          <span className="text-white/40 ml-2">
+                          <span className="text-zinc-300">{dim.name}</span>
+                          <span className="text-zinc-500 ml-2">
                             {(dim.weight * 100).toFixed(0)}%
                           </span>
                         </div>
@@ -235,7 +234,7 @@ export default function RubricsPage() {
         <div className="mt-12 text-center">
           <Link
             href="/"
-            className="text-white/60 hover:text-white transition text-sm"
+            className="text-zinc-500 hover:text-zinc-300 transition text-sm"
           >
             ← Back to Dashboard
           </Link>

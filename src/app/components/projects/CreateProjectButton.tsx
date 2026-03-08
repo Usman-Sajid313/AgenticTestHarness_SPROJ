@@ -14,7 +14,7 @@ export default function CreateProjectButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl bg-purple-600 px-5 py-2 text-white hover:bg-purple-700 transition"
+        className="rounded-lg bg-zinc-100 text-zinc-900 px-5 py-2 font-medium hover:bg-zinc-200 transition"
       >
         Create New Project
       </button>

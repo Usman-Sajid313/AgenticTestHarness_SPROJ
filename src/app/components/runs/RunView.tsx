@@ -289,9 +289,9 @@ export default function RunView({
 
   return (
     <div>
-      <h1 className="text-3xl font-semibold text-white mb-2">Run Evaluation</h1>
+      <h1 className="text-3xl font-semibold text-zinc-100 mb-2">Run Evaluation</h1>
 
-      <p className="text-white/60 mb-8">
+      <p className="text-zinc-500 mb-8">
         Project: {run.project?.name ?? "Unknown"} · Run ID:{" "}
         <span className="font-mono text-xs">{run.id}</span>
       </p>
@@ -338,23 +338,23 @@ function AnalyzingState({ status }: { status: string }) {
   };
 
   return (
-    <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl">
-      <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-      <h2 className="text-xl font-semibold text-white mb-2">{message.title}</h2>
-      <p className="text-white/70">{message.description}</p>
-      <p className="text-white/40 text-sm mt-2">Status: {status}</p>
+    <div className="mt-10 rounded-xl bg-zinc-900 border border-zinc-800 p-10 text-center">
+      <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+      <h2 className="text-xl font-semibold text-zinc-100 mb-2">{message.title}</h2>
+      <p className="text-zinc-400">{message.description}</p>
+      <p className="text-zinc-600 text-sm mt-2">Status: {status}</p>
     </div>
   );
 }
 
 function FailedState({ status }: { status: string }) {
   return (
-    <div className="mt-10 rounded-2xl bg-rose-500/10 p-10 text-center ring-1 ring-rose-500/20 backdrop-blur-xl">
-      <h2 className="text-xl font-semibold text-rose-200 mb-2">Run Failed</h2>
-      <p className="text-white/70">
+    <div className="mt-10 rounded-xl bg-red-500/10 border border-red-500/20 p-10 text-center">
+      <h2 className="text-xl font-semibold text-red-400 mb-2">Run Failed</h2>
+      <p className="text-zinc-400">
         Parsing or judging failed. Check the server logs for the specific error and retry the run.
       </p>
-      <p className="text-white/40 text-sm mt-2">Status: {status}</p>
+      <p className="text-zinc-600 text-sm mt-2">Status: {status}</p>
     </div>
   );
 }
@@ -380,8 +380,8 @@ function ResultState({
 
   if (!breakdown) {
     return (
-      <div className="rounded-2xl bg-white/5 p-8 mt-6 ring-1 ring-white/10 backdrop-blur-xl">
-        <p className="text-white/70">
+      <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-8 mt-6">
+        <p className="text-zinc-400">
           Evaluation completed, but breakdown data is missing.
         </p>
       </div>
@@ -407,21 +407,21 @@ function ResultState({
   return (
     <div className="space-y-8 mt-6">
       {evaluation.confidence !== null && evaluation.confidence !== undefined && evaluation.confidence < 0.7 && (
-        <div className="rounded-2xl bg-yellow-500/10 p-4 ring-1 ring-yellow-500/20">
-          <p className="text-yellow-300 text-sm">
-            ⚠️ Low confidence evaluation ({Math.round((evaluation.confidence || 0) * 100)}%).
+        <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/20 p-4">
+          <p className="text-yellow-400 text-sm">
+            Low confidence evaluation ({Math.round((evaluation.confidence || 0) * 100)}%).
             Judges disagreed significantly. Results should be interpreted with caution.
           </p>
         </div>
       )}
 
-      <div className="rounded-2xl bg-white/5 p-8 ring-1 ring-white/10 backdrop-blur-xl">
+      <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-semibold text-white">Overall Score</h2>
+          <h2 className="text-xl font-semibold text-zinc-100">Overall Score</h2>
           <div className="relative h-20 w-20 shrink-0">
-            <div className="absolute inset-0 rounded-full bg-white/10" />
+            <div className="absolute inset-0 rounded-full bg-zinc-800" />
             <div
-              className="absolute inset-1 rounded-full bg-gradient-to-tr from-purple-500 to-fuchsia-400 flex items-center justify-center"
+              className="absolute inset-1 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center"
               style={{ clipPath: `inset(${100 - score}% 0 0 0)` }}
             >
               <span className="text-2xl font-bold text-white">{score}</span>
@@ -429,16 +429,16 @@ function ResultState({
           </div>
         </div>
 
-        <p className="text-white/70 text-sm leading-relaxed max-w-none">
+        <p className="text-zinc-400 text-sm leading-relaxed max-w-none">
           {breakdown.overallComment ??
             "No summary is available for this evaluation."}
         </p>
       </div>
 
       {Object.keys(breakdown.dimensions).length > 0 && (
-        <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-          <h2 className="text-lg font-semibold text-white mb-4">Dimension overview</h2>
-          <p className="text-sm text-white/60 mb-4">Strength profile across evaluation dimensions</p>
+        <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+          <h2 className="text-lg font-semibold text-zinc-100 mb-4">Dimension overview</h2>
+          <p className="text-sm text-zinc-500 mb-4">Strength profile across evaluation dimensions</p>
           <div className="h-72 w-full max-w-md">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart
@@ -448,32 +448,32 @@ function ResultState({
                   fullMark: 100,
                 }))}
               >
-                <PolarGrid stroke="rgba(255,255,255,0.15)" />
+                <PolarGrid stroke="rgba(63,63,70,0.7)" />
                 <PolarAngleAxis
                   dataKey="dimension"
-                  tick={{ fill: "rgba(255,255,255,0.8)", fontSize: 11 }}
-                  tickLine={{ stroke: "rgba(255,255,255,0.2)" }}
+                  tick={{ fill: "rgba(161,161,170,1)", fontSize: 11 }}
+                  tickLine={{ stroke: "rgba(63,63,70,0.5)" }}
                 />
                 <PolarRadiusAxis
                   angle={90}
                   domain={[0, 100]}
-                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                  tick={{ fill: "rgba(113,113,122,1)", fontSize: 10 }}
                 />
                 <Radar
                   name="Score"
                   dataKey="score"
-                  stroke="#a855f7"
-                  fill="#a855f7"
+                  stroke="#6366f1"
+                  fill="#6366f1"
                   fillOpacity={0.35}
                   strokeWidth={2}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "rgba(0,0,0,0.9)",
-                    border: "1px solid rgba(255,255,255,0.2)",
+                    backgroundColor: "rgba(9,9,11,0.95)",
+                    border: "1px solid rgba(63,63,70,0.8)",
                     borderRadius: "8px",
                   }}
-                  labelStyle={{ color: "rgba(255,255,255,0.9)" }}
+                  labelStyle={{ color: "rgba(228,228,231,0.9)" }}
                   formatter={(value: number | undefined) => [`${value ?? 0}/100`, "Score"]}
                 />
               </RadarChart>
@@ -506,14 +506,14 @@ function ResultState({
           ([key, dim]: [string, DimensionResult]) => (
             <div
               key={key}
-              className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl"
+              className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-zinc-100">
                   {humanizeKey(key)}
                 </h3>
                 <div className="flex items-center gap-3 ml-3">
-                  <span className="text-sm font-semibold text-purple-300 shrink-0">
+                  <span className="text-sm font-semibold text-indigo-400 shrink-0">
                     {dim.score} / 100
                   </span>
                   {(scorecard?.dimensions?.[key]?.evidenceEventIds?.length ?? 0) > 0 && (
@@ -525,7 +525,7 @@ function ResultState({
                           `Dimension: ${humanizeKey(key)}`
                         )
                       }
-                      className="rounded-lg bg-purple-500/15 px-2.5 py-1 text-xs font-medium text-purple-200 ring-1 ring-purple-400/30 hover:bg-purple-500/25"
+                      className="rounded-lg bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-300 border border-indigo-500/20 hover:bg-indigo-500/20"
                     >
                       View evidence ({uniqueNonEmptyStrings(scorecard?.dimensions?.[key]?.evidenceEventIds).length})
                     </button>
@@ -534,21 +534,21 @@ function ResultState({
               </div>
 
               {dim.summary && (
-                <p className="text-sm text-white/80 mb-6 leading-relaxed">
+                <p className="text-sm text-zinc-400 mb-6 leading-relaxed">
                   {dim.summary}
                 </p>
               )}
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div>
-                  <p className="text-xs font-semibold text-emerald-300 mb-2">
+                  <p className="text-xs font-semibold text-emerald-400 mb-2">
                     What went well
                   </p>
                   <ProsConsList value={dim.strengths} />
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold text-rose-300 mb-2">
+                  <p className="text-xs font-semibold text-rose-400 mb-2">
                     Where to improve
                   </p>
                   <ProsConsList value={dim.weaknesses} />
@@ -604,24 +604,24 @@ function TraceExplorer({
   );
 
   return (
-    <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl space-y-6">
+    <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">Trace explorer</h2>
-          <p className="text-sm text-white/60">
+          <h2 className="text-lg font-semibold text-zinc-100">Trace explorer</h2>
+          <p className="text-sm text-zinc-500">
             Inspect normalized timeline, tool interactions, errors/retries, and jump from evidence-linked scores to source events.
           </p>
         </div>
         {selectedEvidenceEventIds.length > 0 && (
-          <div className="flex items-center gap-2 rounded-xl bg-purple-500/10 px-3 py-2 ring-1 ring-purple-400/20">
-            <span className="text-xs text-purple-200">
+          <div className="flex items-center gap-2 rounded-lg bg-indigo-500/10 px-3 py-2 border border-indigo-500/20">
+            <span className="text-xs text-indigo-300">
               Highlighting {selectedEvidenceEventIds.length} event{selectedEvidenceEventIds.length === 1 ? "" : "s"}
               {selectedEvidenceLabel ? ` from ${selectedEvidenceLabel}` : ""}
             </span>
             <button
               type="button"
               onClick={onClearSelection}
-              className="text-xs text-purple-100/80 hover:text-white"
+              className="text-xs text-indigo-300/80 hover:text-zinc-100"
             >
               Clear
             </button>
@@ -648,7 +648,7 @@ function TraceExplorer({
 
       {effectiveRuleFlags.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-white">Rule flags</h3>
+          <h3 className="text-sm font-semibold text-zinc-100">Rule flags</h3>
           <div className="space-y-2">
             {effectiveRuleFlags.map((flag, index) => {
               const evidenceIds = uniqueNonEmptyStrings(flag.evidenceEventIds);
@@ -656,14 +656,14 @@ function TraceExplorer({
               return (
                 <div
                   key={`${flag.flagType}-${index}`}
-                  className={`rounded-xl p-3 ring-1 ${severityClass}`}
+                  className={`rounded-lg p-3 border ${severityClass}`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-300">
                         {flag.flagType.replace(/_/g, " ")} · {flag.severity}
                       </p>
-                      <p className="text-sm text-white/85">{flag.message}</p>
+                      <p className="text-sm text-zinc-400">{flag.message}</p>
                     </div>
                     {evidenceIds.length > 0 && (
                       <button
@@ -671,7 +671,7 @@ function TraceExplorer({
                         onClick={() =>
                           onSelectEvidence(evidenceIds, `Rule flag: ${flag.flagType}`)
                         }
-                        className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/15"
+                        className="rounded-lg bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
                       >
                         Jump to evidence ({evidenceIds.length})
                       </button>
@@ -739,19 +739,19 @@ function TraceExplorer({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Normalized timeline</h3>
-            <span className="text-xs text-white/50">{traceEvents.length} events</span>
+            <h3 className="text-sm font-semibold text-zinc-100">Normalized timeline</h3>
+            <span className="text-xs text-zinc-500">{traceEvents.length} events</span>
           </div>
 
           {missingSelectedIds.length > 0 && (
-            <p className="text-xs text-yellow-200/90 rounded-lg bg-yellow-500/10 px-3 py-2 ring-1 ring-yellow-500/20">
+            <p className="text-xs text-yellow-400 rounded-lg bg-yellow-500/10 px-3 py-2 border border-yellow-500/20">
               {missingSelectedIds.length} selected evidence event{missingSelectedIds.length === 1 ? "" : "s"} not present in the rendered trace (likely truncated in judge packet).
             </p>
           )}
 
           {traceEvents.length === 0 ? (
-            <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
-              <p className="text-sm text-white/60">
+            <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4">
+              <p className="text-sm text-zinc-500">
                 No trace events available yet. The parser may still be processing or the packet may be missing trace data.
               </p>
             </div>
@@ -765,26 +765,26 @@ function TraceExplorer({
                     ref={(node) => {
                       timelineRefs.current[event.id] = node;
                     }}
-                    className={`rounded-xl p-3 ring-1 transition ${
+                    className={`rounded-lg p-3 border transition ${
                       isHighlighted
-                        ? "bg-purple-500/15 ring-purple-400/45"
-                        : "bg-white/5 ring-white/10"
+                        ? "bg-indigo-500/10 border-indigo-500/30"
+                        : "bg-zinc-950 border-zinc-800"
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-mono text-xs text-white/90">
+                        <p className="font-mono text-xs text-zinc-400">
                           {event.id}
                         </p>
-                        <p className="text-sm font-medium text-white">
+                        <p className="text-sm font-medium text-zinc-100">
                           {event.type}
                         </p>
                       </div>
-                      <span className="text-xs text-white/50">
+                      <span className="text-xs text-zinc-500">
                         {formatTimestamp(event.timestamp)}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-white/65 break-words">
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500 break-words">
                       {previewJson(event.data)}
                     </p>
                   </div>
@@ -816,25 +816,25 @@ function TraceSection({
   onSelectEvidence: (eventIds: string[], sourceLabel: string) => void;
 }) {
   return (
-    <div className="rounded-xl bg-white/5 p-4 ring-1 ring-white/10">
+    <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        <span className="text-xs text-white/50">{rows.length}</span>
+        <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+        <span className="text-xs text-zinc-500">{rows.length}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="text-sm text-white/55">{emptyLabel}</p>
+        <p className="text-sm text-zinc-500">{emptyLabel}</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => {
             const evidenceIds = uniqueNonEmptyStrings(row.eventIds);
             return (
-              <div key={row.key} className="rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
+              <div key={row.key} className="rounded-lg bg-zinc-900 border border-zinc-800 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-white">{row.title}</p>
-                  <span className="text-xs text-white/45">{formatTimestamp(row.timestamp)}</span>
+                  <p className="text-sm font-medium text-zinc-100">{row.title}</p>
+                  <span className="text-xs text-zinc-600">{formatTimestamp(row.timestamp)}</span>
                 </div>
                 {row.subtitle && (
-                  <p className="mt-1 text-xs leading-relaxed text-white/65 break-words">
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500 break-words">
                     {row.subtitle}
                   </p>
                 )}
@@ -842,7 +842,7 @@ function TraceSection({
                   <button
                     type="button"
                     onClick={() => onSelectEvidence(evidenceIds, `${title}: ${row.title}`)}
-                    className="mt-2 rounded-md bg-white/10 px-2 py-1 text-xs text-white/85 hover:bg-white/15"
+                    className="mt-2 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
                   >
                     Show evidence ({evidenceIds.length})
                   </button>
@@ -858,23 +858,22 @@ function TraceSection({
 
 function MetricChip({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-xl bg-white/5 px-3 py-2 ring-1 ring-white/10">
-      <p className="text-[11px] uppercase tracking-wide text-white/45">{label}</p>
-      <p className="text-sm font-semibold text-white">{value}</p>
+    <div className="rounded-lg bg-zinc-950 border border-zinc-800 px-3 py-2">
+      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="text-sm font-semibold text-zinc-100">{value}</p>
     </div>
   );
 }
 
-/** Renders pros or cons as a list; backend may send multiple items joined by "; " */
 function ProsConsList({ value }: { value?: string }) {
-  if (!value || !value.trim()) return <p className="text-sm text-white/50">—</p>;
+  if (!value || !value.trim()) return <p className="text-sm text-zinc-600">—</p>;
   const items = value
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (items.length <= 1) return <p className="text-sm text-white/70 leading-relaxed">{value}</p>;
+  if (items.length <= 1) return <p className="text-sm text-zinc-400 leading-relaxed">{value}</p>;
   return (
-    <ul className="list-disc list-inside space-y-1.5 text-sm text-white/70 leading-relaxed">
+    <ul className="list-disc list-inside space-y-1.5 text-sm text-zinc-400 leading-relaxed">
       {items.map((item, i) => (
         <li key={i}>{item}</li>
       ))}
@@ -954,11 +953,11 @@ function formatDurationMs(value: number) {
 function getSeverityClass(severity: string) {
   switch (severity.toLowerCase()) {
     case "high":
-      return "bg-rose-500/10 ring-rose-500/20";
+      return "bg-red-500/10 border-red-500/20";
     case "medium":
-      return "bg-yellow-500/10 ring-yellow-500/20";
+      return "bg-yellow-500/10 border-yellow-500/20";
     default:
-      return "bg-sky-500/10 ring-sky-500/20";
+      return "bg-sky-500/10 border-sky-500/20";
   }
 }
 
@@ -980,9 +979,9 @@ function PanelScoresCard({
       : `${withinThreshold}/${panel.length} models within ${AGREEMENT_THRESHOLD} pts`;
 
   return (
-    <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-      <h2 className="text-lg font-semibold text-white mb-2">Judge panel</h2>
-      <p className="text-sm text-white/60 mb-4">
+    <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+      <h2 className="text-lg font-semibold text-zinc-100 mb-2">Judge panel</h2>
+      <p className="text-sm text-zinc-500 mb-4">
         Per-model overall scores and agreement with the combined result
       </p>
       <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -992,12 +991,12 @@ function PanelScoresCard({
           return (
             <div
               key={entry.model}
-              className="rounded-xl bg-white/5 px-4 py-2 ring-1 ring-white/10 flex items-center gap-3"
+              className="rounded-lg bg-zinc-950 border border-zinc-800 px-4 py-2 flex items-center gap-3"
             >
-              <span className="text-white/80 font-medium truncate max-w-[120px]" title={entry.model}>
+              <span className="text-zinc-300 font-medium truncate max-w-[120px]" title={entry.model}>
                 {entry.model}
               </span>
-              <span className="text-purple-300 font-semibold">{s}/100</span>
+              <span className="text-indigo-400 font-semibold">{s}/100</span>
               {diff !== 0 && (
                 <span className={diff > 0 ? "text-emerald-400 text-xs" : "text-rose-400 text-xs"}>
                   {diff > 0 ? "+" : ""}{diff}
@@ -1007,7 +1006,7 @@ function PanelScoresCard({
           );
         })}
       </div>
-      <p className="text-xs text-white/50">{agreementLabel}</p>
+      <p className="text-xs text-zinc-500">{agreementLabel}</p>
     </div>
   );
 }

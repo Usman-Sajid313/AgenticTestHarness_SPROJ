@@ -121,8 +121,8 @@ export default function ProjectRunsTable({
 
   if (!runs || runs.length === 0) {
     return (
-      <div className="rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl mt-10">
-        <p className="text-white/70">There are no runs for this project yet.</p>
+      <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-10 text-center mt-10">
+        <p className="text-zinc-400">There are no runs for this project yet.</p>
       </div>
     );
   }
@@ -137,15 +137,15 @@ export default function ProjectRunsTable({
     if (status === "JUDGING" || status === "PARSING" || status === "READY_FOR_JUDGING") {
       return "text-yellow-400";
     }
-    return "text-white/70";
+    return "text-zinc-500";
   };
 
   return (
     <div className="mt-10 space-y-4">
-      <div className="overflow-hidden rounded-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur-xl">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-white/70 font-medium">
+            <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 text-xs uppercase tracking-wider font-medium">
               <th className="px-5 py-3.5">Run ID</th>
               <th className="px-5 py-3.5">Status</th>
               <th className="px-5 py-3.5 text-right w-[5.5rem]">Score</th>
@@ -168,12 +168,12 @@ export default function ProjectRunsTable({
             return (
               <tr
                 key={run.id}
-                className="border-b border-white/5 text-white/90 hover:bg-white/5 transition align-middle"
+                className="border-b border-zinc-800/50 text-zinc-300 hover:bg-zinc-800/50 transition align-middle"
               >
                 <td className="px-5 py-3.5 align-baseline">
                   <Link
                     href={`/runs/${run.id}`}
-                    className="font-mono text-purple-300 hover:text-purple-200 underline"
+                    className="font-mono text-zinc-300 hover:text-zinc-100 underline"
                   >
                     {run.id.slice(0, 12)}...
                   </Link>
@@ -183,9 +183,9 @@ export default function ProjectRunsTable({
                 </td>
                 <td className="px-5 py-3.5 text-right align-baseline tabular-nums w-[5.5rem]">
                   {score !== null ? (
-                    <span className="font-semibold text-purple-300">{score}/100</span>
+                    <span className="font-semibold text-zinc-100">{score}/100</span>
                   ) : (
-                    <span className="text-white/40">—</span>
+                    <span className="text-zinc-600">—</span>
                   )}
                 </td>
                 {baselineScore !== null && (
@@ -200,14 +200,14 @@ export default function ProjectRunsTable({
                         {score - baselineScore}
                       </span>
                     ) : (
-                      <span className="text-white/40">—</span>
+                      <span className="text-zinc-600">—</span>
                     )}
                   </td>
                 )}
-                <td className="px-5 py-3.5 align-baseline whitespace-nowrap text-white/80">
+                <td className="px-5 py-3.5 align-baseline whitespace-nowrap text-zinc-400">
                   {dateTimeFormat.format(new Date(run.createdAt))}
                 </td>
-                <td className="px-5 py-3.5 align-baseline whitespace-nowrap text-white/80">
+                <td className="px-5 py-3.5 align-baseline whitespace-nowrap text-zinc-400">
                   {run.completedAt
                     ? dateTimeFormat.format(new Date(run.completedAt))
                     : "—"}
@@ -218,7 +218,7 @@ export default function ProjectRunsTable({
                       {run.evaluations?.[0] &&
                         score !== null &&
                         (baselineRunId === run.id ? (
-                          <span className="text-xs text-white/50 px-2.5 py-1 rounded bg-white/5 ring-1 ring-white/10 whitespace-nowrap">
+                          <span className="bg-zinc-800 text-zinc-400 text-xs rounded px-2.5 py-1 whitespace-nowrap">
                             Baseline
                           </span>
                         ) : (
@@ -227,7 +227,7 @@ export default function ProjectRunsTable({
                               e.stopPropagation();
                               handleSetBaseline(run.id, score);
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 text-xs transition ring-1 ring-white/10 whitespace-nowrap"
+                            className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs rounded-lg px-2.5 py-1 transition whitespace-nowrap"
                             title="Set as baseline for delta comparison"
                           >
                             Set baseline
@@ -241,7 +241,7 @@ export default function ProjectRunsTable({
                         handleDownloadPDF(run.id);
                       }}
                       disabled={downloadingRunId === run.id || !run.evaluations?.[0]}
-                      className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition ring-1 ring-purple-500/30 text-xs font-medium flex items-center justify-center gap-1.5 whitespace-nowrap min-w-0"
+                      className="bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 text-xs rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition px-2.5 py-1 font-medium flex items-center justify-center gap-1.5 whitespace-nowrap min-w-0"
                       title={!run.evaluations?.[0] ? "No evaluation available" : "Download PDF report"}
                     >
                       {downloadingRunId === run.id ? (
@@ -272,8 +272,8 @@ export default function ProjectRunsTable({
       </div>
 
       {totalPages > 1 && (
-        <div className="border-t border-white/10 px-6 py-4 flex items-center justify-between">
-          <div className="text-sm text-white/60">
+        <div className="border-t border-zinc-800 px-6 py-4 flex items-center justify-between">
+          <div className="text-sm text-zinc-500">
             Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} runs
           </div>
 
@@ -281,7 +281,7 @@ export default function ProjectRunsTable({
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition ring-1 ring-white/10"
+              className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
             >
               Previous
             </button>
@@ -301,14 +301,14 @@ export default function ProjectRunsTable({
                   return (
                     <div key={pageNum} className="flex items-center gap-2">
                       {showEllipsisBefore && (
-                        <span className="text-white/40 px-2">...</span>
+                        <span className="text-zinc-600 px-2">...</span>
                       )}
                       <button
                         onClick={() => handlePageChange(pageNum)}
                         className={`px-3 py-1 rounded-lg text-sm transition ${
                           currentPage === pageNum
-                            ? "bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30"
-                            : "bg-white/5 text-white/70 hover:text-white hover:bg-white/10 ring-1 ring-white/10"
+                            ? "bg-zinc-800 text-zinc-100"
+                            : "bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                         }`}
                       >
                         {pageNum}
@@ -321,7 +321,7 @@ export default function ProjectRunsTable({
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 rounded-lg bg-white/5 text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition ring-1 ring-white/10"
+              className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
             >
               Next
             </button>

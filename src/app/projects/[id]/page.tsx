@@ -56,15 +56,12 @@ export default async function ProjectPage(context: {
   });
 
   return (
-    <main className="relative min-h-screen w-full bg-black">
-      <div className="absolute inset-0 bg-deep-space" />
-      <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
-
-      <div className="relative mx-auto max-w-6xl px-6 py-16">
+    <main className="min-h-screen w-full bg-zinc-950">
+      <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-4xl font-bold text-white">{project.name}</h1>
-            <p className="mt-3 text-white/70 max-w-2xl">
+            <p className="mt-3 text-zinc-400 max-w-2xl">
               {project.description}
             </p>
           </div>

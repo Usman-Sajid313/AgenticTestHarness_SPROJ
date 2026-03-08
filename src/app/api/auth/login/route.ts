@@ -4,6 +4,7 @@ import { z, ZodError } from 'zod';
 import bcrypt from 'bcryptjs';
 import { signAuthJWT } from '@/lib/jwt';
 import { ensureDefaultSuiteForUser } from '@/lib/testSuiteStore';
+import { authCookieName, authCookieOptions } from '@/lib/authCookie';
 
 const LoginSchema = z.object({
   identifier: z.string().trim().min(2, 'Enter your name'),
@@ -63,13 +64,9 @@ export async function POST(req: Request) {
 
     const res = NextResponse.json({ ok: true });
     res.cookies.set({
-      name: '__auth',
+      name: authCookieName(),
       value: token,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-      maxAge: Number(process.env.JWT_EXPIRES_DAYS ?? '14') * 24 * 60 * 60,
+      ...authCookieOptions(req, Number(process.env.JWT_EXPIRES_DAYS ?? '14') * 24 * 60 * 60),
     });
 
     await prisma.auditLog.create({

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSupabaseServerClient } from "@/lib/supabase";
+import { uploadFile, getPublicUrl } from "@/lib/storage";
 import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -45,8 +45,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabaseServerClient = getSupabaseServerClient();
-
   const run = await prisma.agentRun.create({
     data: {
       projectId,
@@ -64,27 +62,21 @@ export async function POST(req: Request) {
     data: { status: "UPLOADING" },
   });
 
-  const { error: uploadError } = await supabaseServerClient.storage
-    .from("agent-logs")
-    .upload(storageKey, file, {
-      contentType: file.type || "text/plain",
-      upsert: true,
-    });
-
-  if (uploadError) {
+  try {
+    const fileBuffer = await file.arrayBuffer();
+    await uploadFile(storageKey, fileBuffer, file.type || "text/plain");
+  } catch (uploadError) {
     await prisma.agentRun.update({
       where: { id: run.id },
       data: { status: "FAILED" },
     });
     return NextResponse.json(
-      { error: `Upload failed: ${uploadError.message}` },
+      { error: `Upload failed: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}` },
       { status: 500 }
     );
   }
 
-  const { data: pubData } = supabaseServerClient.storage
-    .from("agent-logs")
-    .getPublicUrl(storageKey);
+  const publicUrl = getPublicUrl(storageKey);
 
   const fileBuffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest("SHA-256", fileBuffer);
@@ -98,7 +90,7 @@ export async function POST(req: Request) {
       projectId,
       uploadedById: user.id,
       storageKey,
-      url: pubData.publicUrl,
+      url: publicUrl,
       sizeBytes: file.size,
       checksum: sha256,
       contentType: file.type || "text/plain",

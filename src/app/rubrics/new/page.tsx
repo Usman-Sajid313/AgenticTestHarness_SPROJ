@@ -523,36 +523,36 @@ export default function NewRubricPage() {
   const weightsValid = Math.abs(totalWeight - 1.0) < 0.01;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="container mx-auto px-6 py-12 max-w-5xl">
         <div className="mb-8">
           <Link
             href="/rubrics"
-            className="text-white/60 hover:text-white transition text-sm mb-4 inline-block"
+            className="text-zinc-500 hover:text-zinc-300 transition text-sm mb-4 inline-block"
           >
             ← Back to Rubrics
           </Link>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-2xl font-semibold text-zinc-100 mb-2">
             Create Evaluation Rubric
           </h1>
-          <p className="text-white/60">
+          <p className="text-zinc-500">
             Define custom evaluation criteria for your AI agent tests
           </p>
         </div>
 
         {showTemplates && dimensions.length === 0 && (
-          <div className="mb-8 p-6 rounded-2xl border border-purple-500/30 bg-purple-500/5">
-            <h2 className="text-xl font-semibold mb-4">Start from a Template</h2>
+          <div className="mb-8 p-6 rounded-xl border border-zinc-800 bg-zinc-900">
+            <h2 className="text-xl font-semibold text-zinc-100 mb-4">Start from a Template</h2>
             <div className="grid md:grid-cols-3 gap-4">
               {Object.entries(TEMPLATES).map(([key, template]) => (
                 <button
                   key={key}
                   onClick={() => loadTemplate(key)}
-                  className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 transition text-left"
+                  className="p-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 transition text-left"
                 >
-                  <h3 className="font-semibold mb-1">{template.name}</h3>
-                  <p className="text-sm text-white/60">{template.description}</p>
-                  <p className="text-xs text-white/40 mt-2">
+                  <h3 className="font-semibold text-zinc-100 mb-1">{template.name}</h3>
+                  <p className="text-sm text-zinc-400">{template.description}</p>
+                  <p className="text-xs text-zinc-500 mt-2">
                     {template.dimensions.length} dimensions
                   </p>
                 </button>
@@ -560,7 +560,7 @@ export default function NewRubricPage() {
             </div>
             <button
               onClick={() => setShowTemplates(false)}
-              className="mt-4 text-sm text-white/60 hover:text-white transition"
+              className="mt-4 text-sm text-zinc-500 hover:text-zinc-300 transition"
             >
               or start from scratch →
             </button>
@@ -569,47 +569,47 @@ export default function NewRubricPage() {
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-2">Rubric Name *</label>
+            <label className="block text-sm font-medium text-zinc-100 mb-2">Rubric Name *</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-purple-500/50 focus:outline-none transition"
+              className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 focus:outline-none transition"
               placeholder="e.g., Customer Service Excellence"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Description</label>
+            <label className="block text-sm font-medium text-zinc-100 mb-2">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-purple-500/50 focus:outline-none transition min-h-[100px]"
+              className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 focus:outline-none transition min-h-[100px]"
               placeholder="Describe what this rubric evaluates..."
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-4">
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium text-zinc-100">
                 Dimensions * (Total weight: {totalWeight.toFixed(2)}/1.00)
                 {!weightsValid && (
                   <span className="ml-2 text-yellow-400 text-xs">
-                    ⚠️ Weights must sum to 1.0
+                    Weights must sum to 1.0
                   </span>
                 )}
               </label>
               <div className="flex gap-2">
                 <button
                   onClick={normalizeWeights}
-                  className="px-3 py-1 text-sm bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition"
+                  className="px-3 py-1 text-sm bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition"
                   disabled={dimensions.length === 0}
                 >
                   Normalize Weights
                 </button>
                 <button
                   onClick={addDimension}
-                  className="px-3 py-1 text-sm bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition"
+                  className="px-3 py-1 text-sm bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition"
                 >
                   + Add Dimension
                 </button>
@@ -620,10 +620,10 @@ export default function NewRubricPage() {
               {dimensions.map((dim, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-xl bg-white/5 border border-white/10"
+                  className="p-4 rounded-xl bg-zinc-900 border border-zinc-800"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-semibold">Dimension {idx + 1}</h3>
+                    <h3 className="font-semibold text-zinc-100">Dimension {idx + 1}</h3>
                     <button
                       onClick={() => removeDimension(idx)}
                       className="text-red-400 hover:text-red-300 text-sm"
@@ -634,19 +634,19 @@ export default function NewRubricPage() {
 
                   <div className="grid md:grid-cols-2 gap-3 mb-3">
                     <div>
-                      <label className="block text-xs text-white/60 mb-1">Name</label>
+                      <label className="block text-xs text-zinc-500 mb-1">Name</label>
                       <input
                         type="text"
                         value={dim.name}
                         onChange={(e) =>
                           updateDimension(idx, "name", e.target.value)
                         }
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500/50 focus:outline-none text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 focus:outline-none text-sm"
                         placeholder="e.g., Task Completion"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-white/60 mb-1">
+                      <label className="block text-xs text-zinc-500 mb-1">
                         Weight (0-1)
                       </label>
                       <input
@@ -662,13 +662,13 @@ export default function NewRubricPage() {
                             parseFloat(e.target.value) || 0
                           )
                         }
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500/50 focus:outline-none text-sm"
+                        className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 focus:outline-none text-sm"
                       />
                     </div>
                   </div>
 
                   <div className="mb-3">
-                    <label className="block text-xs text-white/60 mb-1">
+                    <label className="block text-xs text-zinc-500 mb-1">
                       Description
                     </label>
                     <textarea
@@ -676,37 +676,37 @@ export default function NewRubricPage() {
                       onChange={(e) =>
                         updateDimension(idx, "description", e.target.value)
                       }
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500/50 focus:outline-none text-sm"
+                      className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 focus:outline-none text-sm"
                       rows={2}
                       placeholder="What does this dimension evaluate?"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs text-white/60 mb-2">
+                    <label className="block text-xs text-zinc-500 mb-2">
                       Scoring Criteria ({dim.scoringCriteria.length} levels)
                     </label>
                     <div className="space-y-2 text-xs">
                       {dim.scoringCriteria.map((criteria, cIdx) => (
                         <div
                           key={cIdx}
-                          className="flex items-center gap-2 p-2 rounded-lg bg-black/20"
+                          className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950"
                         >
-                          <span className="text-white/40 whitespace-nowrap">
+                          <span className="text-zinc-500 whitespace-nowrap">
                             {criteria.scoreRange[0]}-{criteria.scoreRange[1]}:
                           </span>
                           <input
                             type="text"
                             value={criteria.label}
                             placeholder="Label"
-                            className="px-2 py-1 rounded bg-white/5 border border-white/10 focus:outline-none flex-shrink-0 w-24"
+                            className="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-100 focus:outline-none flex-shrink-0 w-24"
                             readOnly
                           />
                           <input
                             type="text"
                             value={criteria.description}
                             placeholder="Description"
-                            className="px-2 py-1 rounded bg-white/5 border border-white/10 focus:outline-none flex-1"
+                            className="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-100 focus:outline-none flex-1"
                             readOnly
                           />
                         </div>
@@ -717,7 +717,7 @@ export default function NewRubricPage() {
               ))}
 
               {dimensions.length === 0 && (
-                <div className="text-center py-12 text-white/40">
+                <div className="text-center py-12 text-zinc-500">
                   No dimensions yet. Click &quot;Add Dimension&quot; to start building your
                   rubric.
                 </div>
@@ -731,9 +731,9 @@ export default function NewRubricPage() {
               id="isDefault"
               checked={isDefault}
               onChange={(e) => setIsDefault(e.target.checked)}
-              className="rounded border-white/20 bg-white/10 text-purple-500"
+              className="rounded border-zinc-700 bg-zinc-900 text-indigo-500"
             />
-            <label htmlFor="isDefault" className="text-sm">
+            <label htmlFor="isDefault" className="text-sm text-zinc-400">
               Set as default rubric for new test suites
             </label>
           </div>
@@ -742,13 +742,13 @@ export default function NewRubricPage() {
             <button
               onClick={handleSave}
               disabled={saving || !weightsValid || dimensions.length === 0}
-              className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/25"
+              className="px-8 py-3 bg-zinc-100 text-zinc-900 hover:bg-zinc-200 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? "Saving..." : "Create Rubric"}
             </button>
             <Link
               href="/rubrics"
-              className="px-8 py-3 bg-white/5 rounded-xl font-semibold hover:bg-white/10 transition"
+              className="px-8 py-3 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg font-medium transition"
             >
               Cancel
             </Link>

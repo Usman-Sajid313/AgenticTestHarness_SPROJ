@@ -1,13 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Space_Grotesk } from 'next/font/google';
 import { USER_PROFILE_UPDATED_EVENT } from '@/lib/events';
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-});
 
 type MeResponse = {
   id: string;
@@ -159,20 +153,20 @@ export default function ProfileSettingsCard() {
   }
 
   return (
-    <div className={`${spaceGrotesk.className} rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl`}>
+    <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Profile</h3>
+        <h3 className="text-lg font-semibold text-zinc-100">Profile</h3>
         {!loading && me?.email && (
-          <span className="text-xs text-white/70">{me.email}</span>
+          <span className="text-xs text-zinc-400">{me.email}</span>
         )}
       </div>
 
-      <p className="mb-6 text-sm text-white/70">Update your display name and change your password.</p>
+      <p className="mb-6 text-sm text-zinc-400">Update your display name and change your password.</p>
 
       <div className="space-y-8">
         <form onSubmit={onSubmitName} className="space-y-3">
           <div>
-            <label htmlFor="profile-name" className="block text-sm text-white/80">
+            <label htmlFor="profile-name" className="block text-sm text-zinc-400">
               Display name
             </label>
             <input
@@ -186,7 +180,7 @@ export default function ProfileSettingsCard() {
                 if (nameSuccess) setNameSuccess(null);
               }}
               placeholder="Enter your preferred name"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 outline-none transition focus:border-white/60 focus:ring-4 focus:ring-white/20"
+              className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
               disabled={loading}
             />
           </div>
@@ -195,16 +189,16 @@ export default function ProfileSettingsCard() {
           <button
             type="submit"
             disabled={loading || nameSubmitting}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/15 disabled:opacity-60"
+            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-60"
           >
-            {nameSubmitting ? 'Saving…' : 'Save name'}
+            {nameSubmitting ? 'Saving...' : 'Save name'}
           </button>
         </form>
 
         <form onSubmit={onSubmitPassword} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="old-password" className="block text-sm text-white/80">
+              <label htmlFor="old-password" className="block text-sm text-zinc-400">
                 Current password
               </label>
               <input
@@ -218,13 +212,13 @@ export default function ProfileSettingsCard() {
                   if (passwordSuccess) setPasswordSuccess(null);
                 }}
                 placeholder="Enter current password"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 outline-none transition focus:border-white/60 focus:ring-4 focus:ring-white/20"
+                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
                 autoComplete="current-password"
               />
             </div>
 
             <div>
-              <label htmlFor="new-password" className="block text-sm text-white/80">
+              <label htmlFor="new-password" className="block text-sm text-zinc-400">
                 New password
               </label>
               <input
@@ -238,13 +232,13 @@ export default function ProfileSettingsCard() {
                   if (passwordSuccess) setPasswordSuccess(null);
                 }}
                 placeholder="Enter a strong password"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 outline-none transition focus:border-white/60 focus:ring-4 focus:ring-white/20"
+                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
                 autoComplete="new-password"
               />
             </div>
 
             <div>
-              <label htmlFor="confirm-password" className="block text-sm text-white/80">
+              <label htmlFor="confirm-password" className="block text-sm text-zinc-400">
                 Confirm new password
               </label>
               <input
@@ -258,7 +252,7 @@ export default function ProfileSettingsCard() {
                   if (passwordSuccess) setPasswordSuccess(null);
                 }}
                 placeholder="Re-enter new password"
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white placeholder:text-white/40 outline-none transition focus:border-white/60 focus:ring-4 focus:ring-white/20"
+                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
                 autoComplete="new-password"
               />
             </div>
@@ -270,13 +264,12 @@ export default function ProfileSettingsCard() {
           <button
             type="submit"
             disabled={passwordSubmitting}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/15 disabled:opacity-60"
+            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-60"
           >
-            {passwordSubmitting ? 'Updating…' : 'Change password'}
+            {passwordSubmitting ? 'Updating...' : 'Change password'}
           </button>
         </form>
       </div>
     </div>
   );
 }
-

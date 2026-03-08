@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { validateJudgeBudget } from "@/lib/runBudgetValidator";
+import { judgeRun } from "@/lib/judger";
 
 export async function POST(
   req: Request,
@@ -38,7 +39,7 @@ export async function POST(
     );
   }
 
-  // Validate budget before calling edge function
+  // Validate budget before calling judge
   const budgetValidation = await validateJudgeBudget(id);
   if (!budgetValidation.allowed) {
     console.warn(`Judge budget validation failed for run ${id}:`, budgetValidation.reason);
@@ -51,7 +52,7 @@ export async function POST(
           budgetLimit: budgetValidation.budgetLimit,
         },
       },
-      { status: 429 } // 429 Too Many Requests (budget exhausted)
+      { status: 429 }
     );
   }
 
@@ -61,7 +62,6 @@ export async function POST(
     budgetLimit: budgetValidation.budgetLimit,
   });
 
-  // Call Supabase Edge Function
   try {
     // Acquire judge lock: only one caller should transition READY_FOR_JUDGING -> JUDGING.
     const locked = await prisma.agentRun.updateMany({
@@ -76,67 +76,9 @@ export async function POST(
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    console.log("[judge API] Invoking judger for runId=", id);
 
-    console.log("[judge API] Invoking edge function for runId=", id);
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/judge_run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
-        "apikey": serviceKey,
-      },
-      body: JSON.stringify({ runId: id }),
-    });
-
-    const responseText = await response.text();
-    console.log("[judge API] Edge function response: status=", response.status, "body=", responseText?.slice(0, 500) + (responseText?.length > 500 ? "..." : ""));
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { raw: responseText };
-    }
-
-    if (!response.ok) {
-      const errorText = responseText || JSON.stringify(data);
-      console.error("[judge API] Judge failed: status=", response.status, "error=", errorText);
-      const isTerminalPanelFailure =
-        errorText.includes("All panel evaluators failed") ||
-        errorText.includes("No GROQ model returned a valid scorecard");
-      const isRetryable =
-        !isTerminalPanelFailure &&
-        (
-          response.status >= 500 ||
-          response.status === 429 ||
-          errorText.includes("WORKER_LIMIT") ||
-          errorText.includes("timeout") ||
-          errorText.includes("rate limit")
-        );
-
-      if (isRetryable) {
-        await prisma.agentRun.updateMany({
-          where: { id, status: "JUDGING" },
-          data: { status: "READY_FOR_JUDGING" },
-        });
-      } else {
-        await prisma.agentRun.updateMany({
-          where: { id, status: "JUDGING" },
-          data: { status: "FAILED" },
-        });
-      }
-
-      return NextResponse.json(
-        {
-          error: "Judge function failed",
-          details: `Function returned ${response.status}: ${errorText}`,
-          retryable: isRetryable,
-        },
-        { status: isRetryable ? 503 : 500 }
-      );
-    }
+    const data = await judgeRun(id);
 
     return NextResponse.json({
       success: true,
@@ -148,6 +90,9 @@ export async function POST(
     console.error("[judge API] Failed to invoke judge function:", err);
     const errorMessage = err instanceof Error ? err.message : String(err);
 
+    const isTerminalPanelFailure =
+      errorMessage.includes("All panel evaluators failed") ||
+      errorMessage.includes("No GROQ model returned a valid scorecard");
     const isQuotaError = errorMessage.includes("429") ||
                          errorMessage.includes("quota") ||
                          errorMessage.includes("rate limit");
@@ -155,8 +100,9 @@ export async function POST(
                           errorMessage.includes("546") ||
                           errorMessage.includes("timeout") ||
                           errorMessage.includes("504");
+    const isRetryable = !isTerminalPanelFailure && (isQuotaError || isWorkerLimit);
 
-    if (isQuotaError || isWorkerLimit) {
+    if (isRetryable) {
       await prisma.agentRun.updateMany({
         where: { id, status: "JUDGING" },
         data: { status: "READY_FOR_JUDGING" },
@@ -174,10 +120,9 @@ export async function POST(
       {
         error: "Failed to trigger judging",
         details: errorMessage,
-        retryable: isQuotaError || isWorkerLimit,
+        retryable: isRetryable,
       },
       { status: statusCode }
     );
   }
 }
-

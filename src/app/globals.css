@@ -3,33 +3,24 @@
 html {
   height: 100%;
   margin: 0;
-  overflow: hidden;
 }
 body {
   height: 100%;
   margin: 0;
-  overflow: hidden;
-  background: #000;
+  background: #09090b;
 }
 
-@keyframes flow-vertical {
-  0% { background-position: 50% 0%; }
-  50% { background-position: 50% 100%; }
-  100% { background-position: 50% 0%; }
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
 }
-.bg-deep-space {
-  background: linear-gradient(to bottom, #000000 0%, #0b001a 35%, #120024 70%, #1a0033 100%);
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-.bg-deep-space-anim {
-  background: linear-gradient(to bottom, #090011, #120024, #1a0033, #120024, #090011);
-  background-size: 100% 300%;
-  animation: flow-vertical 18s ease-in-out infinite;
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
 }
-
-.neon {
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,0.06) inset,
-    0 8px 30px rgba(0,0,0,0.45),
-    0 0 30px rgba(255,255,255,0.08);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
-

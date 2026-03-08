@@ -1,12 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Space_Grotesk } from 'next/font/google';
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-});
 
 const REQUIRED_SENTENCE =
   'I understand this action will permanently delete my account';
@@ -60,38 +54,38 @@ export default function DeleteAccountModal({ open, onClose }: Props) {
 
   return (
     <div
-      className={`${spaceGrotesk.className} fixed inset-0 z-50 flex items-center justify-center`}
+      className="fixed inset-0 z-50 flex items-center justify-center"
       aria-modal="true"
       role="dialog"
     >
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl shadow-2xl neon">
+      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between">
-          <h3 className="text-xl font-semibold text-white">Delete Account</h3>
+          <h3 className="text-xl font-semibold text-zinc-100">Delete Account</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md px-2 py-1 text-white/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+            className="rounded-md px-2 py-1 text-zinc-400 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600"
           >
             ✕
           </button>
         </div>
 
-        <p className="mb-4 text-sm leading-relaxed text-white/70">
+        <p className="mb-4 text-sm leading-relaxed text-zinc-400">
           This action will permanently delete your account and associated data. This cannot be undone.
           To confirm, please type the following sentence exactly:
         </p>
 
-        <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80">
+        <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300">
           {REQUIRED_SENTENCE}
         </div>
 
         <div className="space-y-1.5">
-          <label className="block text-sm text-white/80">
+          <label className="block text-sm text-zinc-400">
             Type the confirmation sentence
           </label>
           <input
@@ -103,10 +97,10 @@ export default function DeleteAccountModal({ open, onClose }: Props) {
             }}
             placeholder="Type the sentence exactly"
             className={`
-              w-full rounded-lg border px-3 py-2 text-white placeholder:text-white/40 outline-none transition
+              w-full rounded-lg border px-3 py-2 text-zinc-100 placeholder:text-zinc-600 outline-none transition
               ${text && !matched
-                ? 'bg-white/5 border-red-500/60 focus:border-red-400 focus:ring-4 focus:ring-red-500/20'
-                : 'bg-white/5 border-white/10 focus:border-white/60 focus:ring-4 focus:ring-white/20'
+                ? 'bg-zinc-900 border-red-500/60 focus:border-red-400 focus:ring-1 focus:ring-red-500/30'
+                : 'bg-zinc-900 border-zinc-800 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600'
               }
             `}
             autoFocus
@@ -121,11 +115,7 @@ export default function DeleteAccountModal({ open, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              transition active:scale-[0.99]
-            "
+            className="rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 px-4 py-2 transition active:scale-[0.99]"
           >
             Cancel
           </button>
@@ -134,14 +124,9 @@ export default function DeleteAccountModal({ open, onClose }: Props) {
             type="button"
             disabled={!matched || submitting}
             onClick={onDelete}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-red-500/20 ring-1 ring-red-400/40 hover:bg-red-500/25
-              shadow-[0_8px_40px_rgba(244,63,94,0.20)]
-              transition active:scale-[0.99] disabled:opacity-60
-            "
+            className="rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 transition active:scale-[0.99] disabled:opacity-60"
           >
-            {submitting ? 'Deleting…' : 'Delete account'}
+            {submitting ? 'Deleting...' : 'Delete account'}
           </button>
         </div>
       </div>

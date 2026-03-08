@@ -183,14 +183,14 @@ export default function StartRunModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white/5 p-8 ring-1 ring-white/10">
-        <h2 className="text-xl font-semibold text-white mb-4">
+      <div className="w-full max-w-lg rounded-xl bg-zinc-900 border border-zinc-800 p-8 shadow-2xl">
+        <h2 className="text-xl font-semibold text-zinc-100 mb-4">
           Upload Logfile
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-2">
+            <label className="block text-sm font-medium text-zinc-400 mb-2">
               Logfile
             </label>
             <input
@@ -199,11 +199,11 @@ export default function StartRunModal({
               onChange={(e) => {
                 void handleFileSelect(e.target.files?.[0] || null);
               }}
-              className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30"
+              className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-zinc-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700"
               required
             />
             {detectingFileFormat && (
-              <p className="text-xs text-white/40 mt-2">
+              <p className="text-xs text-zinc-500 mt-2">
                 Inspecting file format...
               </p>
             )}
@@ -211,7 +211,7 @@ export default function StartRunModal({
 
           {publicDataTrajectoryCount && publicDataTrajectoryCount > 1 && (
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
                 Trajectory #
               </label>
               <input
@@ -227,9 +227,9 @@ export default function StartRunModal({
                   }
                   setSelectedTrajectoryNumber(next);
                 }}
-                className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 outline-none"
               />
-              <p className="text-xs text-white/40 mt-1">
+              <p className="text-xs text-zinc-500 mt-1">
                 Detected a multi-trajectory `public_data` file with {publicDataTrajectoryCount} trajectories.
                 The run will parse and evaluate only the selected trajectory (1-based index).
               </p>
@@ -237,8 +237,8 @@ export default function StartRunModal({
           )}
 
           {publicDataTrajectoryCount === 1 && (
-            <div className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
-              <p className="text-xs text-white/60">
+            <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-3">
+              <p className="text-xs text-zinc-400">
                 Detected a `public_data` trajectory file. This run will evaluate trajectory #1.
               </p>
             </div>
@@ -246,13 +246,13 @@ export default function StartRunModal({
 
           {rubrics.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
                 Evaluation Rubric (Optional)
               </label>
               <select
                 value={selectedRubricId}
                 onChange={(e) => setSelectedRubricId(e.target.value)}
-                className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-zinc-100 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 outline-none"
               >
                 <option value="">Use Default Rubric</option>
                 {rubrics.map((rubric) => (
@@ -262,7 +262,7 @@ export default function StartRunModal({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-white/40 mt-1">
+              <p className="text-xs text-zinc-500 mt-1">
                 Select a custom rubric or use the default evaluation criteria
               </p>
             </div>
@@ -272,7 +272,7 @@ export default function StartRunModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20"
+              className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
               Cancel
             </button>
@@ -280,7 +280,7 @@ export default function StartRunModal({
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-900/40"
+              className="px-5 py-2 rounded-lg bg-zinc-100 text-zinc-900 font-medium hover:bg-zinc-200 disabled:opacity-50"
             >
               {loading ? (uploadProgress || "Uploading…") : "Start Run"}
             </button>

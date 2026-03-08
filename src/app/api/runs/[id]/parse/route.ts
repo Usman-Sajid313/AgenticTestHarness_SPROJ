@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
+import { parseRun } from "@/lib/parser";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -93,7 +94,7 @@ export async function POST(
     },
   });
 
-  // Validate budget before calling edge function
+  // Validate budget before calling parser
   const budgetValidation = await validateParseBudget(id);
   if (!budgetValidation.allowed) {
     await prisma.runIngestion.update({
@@ -113,7 +114,7 @@ export async function POST(
           budgetLimit: budgetValidation.budgetLimit,
         },
       },
-      { status: 429 } // 429 Too Many Requests (budget exhausted)
+      { status: 429 }
     );
   }
 
@@ -124,36 +125,13 @@ export async function POST(
   });
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/parse_run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
-        "apikey": serviceKey,
-      },
-      body: JSON.stringify({
-        runId: id,
-        ingestionId: ingestion.id,
-        sourceType: effectiveSourceType,
-        formatHint: effectiveFormatHint,
-        mappingConfig: effectiveMappingConfig,
-      }),
+    const data = await parseRun({
+      runId: id,
+      ingestionId: ingestion.id,
+      sourceType: effectiveSourceType,
+      formatHint: effectiveFormatHint ?? undefined,
+      mappingConfig: effectiveMappingConfig,
     });
-
-    const responseText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { raw: responseText };
-    }
-
-    if (!response.ok) {
-      throw new Error(`Function returned ${response.status}: ${responseText}`);
-    }
 
     return NextResponse.json({
       success: true,
@@ -163,7 +141,7 @@ export async function POST(
       data,
     });
   } catch (err) {
-    console.error("Failed to invoke edge function:", err);
+    console.error("Failed to run parser:", err);
     await prisma.agentRun.update({
       where: { id },
       data: { status: "FAILED" },
@@ -184,4 +162,3 @@ export async function POST(
     );
   }
 }
-

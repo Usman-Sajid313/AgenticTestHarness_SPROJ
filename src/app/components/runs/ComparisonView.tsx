@@ -120,12 +120,12 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
     <div className="space-y-8">
       {/* Two-run comparison insights */}
       {twoRunInsights && (
-        <section className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-          <h2 className="mb-4 text-xl font-semibold text-white">Comparison insights</h2>
+        <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+          <h2 className="mb-4 text-xl font-semibold text-zinc-100">Comparison insights</h2>
           <div className="space-y-4 text-sm">
             <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-white/70">Overall score:</span>
-              <span className="font-semibold text-white">
+              <span className="text-zinc-400">Overall score:</span>
+              <span className="font-semibold text-zinc-100">
                 Run 2 is{" "}
                 {twoRunInsights.overallDelta > 0 && (
                   <span className="text-emerald-400">+{twoRunInsights.overallDelta} pts</span>
@@ -134,28 +134,28 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                   <span className="text-rose-400">{twoRunInsights.overallDelta} pts</span>
                 )}
                 {twoRunInsights.overallDelta === 0 && (
-                  <span className="text-white/60">unchanged</span>
+                  <span className="text-zinc-500">unchanged</span>
                 )}
-                <span className="text-white/70"> ({twoRunInsights.scoreA} → {twoRunInsights.scoreB})</span>
+                <span className="text-zinc-400"> ({twoRunInsights.scoreA} → {twoRunInsights.scoreB})</span>
               </span>
             </div>
             {(twoRunInsights.improvedDims.length > 0 || twoRunInsights.regressedDims.length > 0) && (
               <div className="flex flex-wrap gap-4">
                 {twoRunInsights.improvedDims.length > 0 && (
                   <div>
-                    <span className="text-white/50">Improved: </span>
+                    <span className="text-zinc-500">Improved: </span>
                     <span className="text-emerald-300">{twoRunInsights.improvedDims.join(", ")}</span>
                   </div>
                 )}
                 {twoRunInsights.regressedDims.length > 0 && (
                   <div>
-                    <span className="text-white/50">Regressed: </span>
+                    <span className="text-zinc-500">Regressed: </span>
                     <span className="text-rose-300">{twoRunInsights.regressedDims.join(", ")}</span>
                   </div>
                 )}
               </div>
             )}
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-white/60">
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-zinc-500">
               {twoRunInsights.stepsDelta != null && (
                 <span>Steps: {twoRunInsights.stepsDelta >= 0 ? "+" : ""}{twoRunInsights.stepsDelta}</span>
               )}
@@ -178,21 +178,21 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
         {runs.map((run, index) => (
           <div
             key={run.id}
-            className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl"
+            className="rounded-xl bg-zinc-900 border border-zinc-800 p-6"
           >
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wide text-white/40">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">
                   {index === 0 ? "Baseline" : `Run ${index + 1}`}
                 </p>
-                <p className="mt-1 font-mono text-xs text-purple-300">
+                <p className="mt-1 font-mono text-xs text-indigo-400">
                   {run.id.slice(0, 12)}...
                 </p>
               </div>
               {index > 0 && (
                 <button
                   onClick={() => onRemoveRun(run.id)}
-                  className="text-white/40 hover:text-red-400 transition"
+                  className="text-zinc-500 hover:text-red-400 transition"
                   title="Remove from comparison"
                 >
                   <svg
@@ -214,26 +214,26 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
 
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-white/50">Project</p>
-                <p className="text-sm text-white/90">{run.projectName || "—"}</p>
+                <p className="text-xs text-zinc-500">Project</p>
+                <p className="text-sm text-zinc-300">{run.projectName || "—"}</p>
               </div>
 
               <div>
-                <p className="text-xs text-white/50">Overall Score</p>
+                <p className="text-xs text-zinc-500">Overall Score</p>
                 {run.evaluation?.totalScore !== null &&
                 run.evaluation?.totalScore !== undefined ? (
-                  <p className="text-2xl font-semibold text-purple-300">
+                  <p className="text-2xl font-semibold text-indigo-400">
                     {Math.round(run.evaluation.totalScore)}
-                    <span className="text-sm text-white/40">/100</span>
+                    <span className="text-sm text-zinc-500">/100</span>
                   </p>
                 ) : (
-                  <p className="text-sm text-white/40">No evaluation</p>
+                  <p className="text-sm text-zinc-500">No evaluation</p>
                 )}
               </div>
 
               <div>
-                <p className="text-xs text-white/50">Status</p>
-                <p className="text-sm text-white/90">{run.status}</p>
+                <p className="text-xs text-zinc-500">Status</p>
+                <p className="text-sm text-zinc-300">{run.status}</p>
               </div>
 
               {run.evaluation?.confidence !== null &&
@@ -249,8 +249,8 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
       </section>
 
       {/* Overall Score Comparison */}
-      <section className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-        <h2 className="mb-6 text-xl font-semibold text-white">
+      <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+        <h2 className="mb-6 text-xl font-semibold text-zinc-100">
           Overall Score Comparison
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -268,11 +268,11 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
 
             return (
               <div key={run.id}>
-                <p className="mb-2 text-xs text-white/50">
+                <p className="mb-2 text-xs text-zinc-500">
                   {index === 0 ? "Baseline" : `Run ${index + 1}`}
                 </p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-3xl font-bold text-zinc-100">
                     {score !== null && score !== undefined
                       ? Math.round(score)
                       : "—"}
@@ -284,7 +284,7 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                           ? "text-emerald-400"
                           : delta < 0
                           ? "text-rose-400"
-                          : "text-white/40"
+                          : "text-zinc-500"
                       }`}
                     >
                       {delta > 0 ? "+" : ""}
@@ -299,8 +299,8 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
       </section>
 
       {/* Dimension Comparison */}
-      <section className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-        <h2 className="mb-6 text-xl font-semibold text-white">
+      <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+        <h2 className="mb-6 text-xl font-semibold text-zinc-100">
           Dimension Breakdown
         </h2>
         <div className="space-y-4">
@@ -311,14 +311,14 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
       </section>
 
       {/* Metrics Comparison */}
-      <section className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-        <h2 className="mb-6 text-xl font-semibold text-white">
+      <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+        <h2 className="mb-6 text-xl font-semibold text-zinc-100">
           Execution Metrics
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-white/10 text-white/70">
+              <tr className="border-b border-zinc-800 text-zinc-400">
                 <th className="px-4 py-3 text-sm font-medium">Metric</th>
                 {runs.map((run, index) => (
                   <th
@@ -332,8 +332,8 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
             </thead>
             <tbody>
               {Object.entries(metricComparison).map(([metricKey, values]) => (
-                <tr key={metricKey} className="border-b border-white/5">
-                  <td className="px-4 py-3 text-sm text-white/90">
+                <tr key={metricKey} className="border-b border-zinc-800/50">
+                  <td className="px-4 py-3 text-sm text-zinc-300">
                     {formatMetricName(metricKey)}
                   </td>
                   {values.map((item, index) => (
@@ -342,7 +342,7 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                       className="px-4 py-3 text-center text-sm"
                     >
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-white/90">
+                        <span className="text-zinc-300">
                           {metricKey === "totalDurationMs"
                             ? formatDuration(item.value)
                             : item.value ?? "—"}
@@ -360,7 +360,7 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                                   metricKey === "totalRetries"
                                   ? "text-emerald-400"
                                   : "text-rose-400"
-                                : "text-white/40"
+                                : "text-zinc-500"
                             }`}
                           >
                             {item.delta > 0 ? "+" : ""}
@@ -381,16 +381,16 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
 
       {/* Rule Flags Comparison */}
       {runs.some((run) => run.ruleFlags.length > 0) && (
-        <section className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl">
-          <h2 className="mb-6 text-xl font-semibold text-white">Rule Flags</h2>
+        <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+          <h2 className="mb-6 text-xl font-semibold text-zinc-100">Rule Flags</h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {runs.map((run, index) => (
               <div key={run.id}>
-                <p className="mb-3 text-xs text-white/50">
+                <p className="mb-3 text-xs text-zinc-500">
                   {index === 0 ? "Baseline" : `Run ${index + 1}`}
                 </p>
                 {run.ruleFlags.length === 0 ? (
-                  <p className="text-sm text-white/40">No flags</p>
+                  <p className="text-sm text-zinc-500">No flags</p>
                 ) : (
                   <div className="space-y-2">
                     {run.ruleFlags.map((flag, flagIndex) => (
@@ -401,7 +401,7 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                             ? "border-red-500/40 bg-red-500/10 text-red-200"
                             : flag.severity === "medium"
                             ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-200"
-                            : "border-white/20 bg-white/5 text-white/70"
+                            : "border-zinc-700 bg-zinc-800 text-zinc-400"
                         }`}
                       >
                         <p className="font-semibold">{flag.flagType}</p>

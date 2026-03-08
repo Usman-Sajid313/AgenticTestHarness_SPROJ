@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Space_Grotesk } from 'next/font/google';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import DeleteAccountModal from './DeleteAccountModal';
 import { USER_PROFILE_UPDATED_EVENT } from '@/lib/events';
 
 const CACHE_KEY = 'dashboard-display-name';
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 function getCachedDisplayName(): string | null {
   if (typeof window === 'undefined') return null;
@@ -30,22 +30,26 @@ function setCachedDisplayName(name: string) {
   }
 }
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-});
-
 type MeResponse = {
   id: string;
   name?: string | null;
   email: string;
 };
 
+const navLinks = [
+  { href: '/', label: 'Dashboard' },
+  { href: '/test-harness', label: 'Test Harness' },
+  { href: '/rubrics', label: 'Rubrics' },
+  { href: '/limit-model-budget', label: 'Budget' },
+];
+
 export default function DashboardHero() {
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string>(() => getCachedDisplayName() ?? '…');
+  const [displayName, setDisplayName] = useState<string>(() => getCachedDisplayName() ?? '');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const cached = getCachedDisplayName();
@@ -87,113 +91,108 @@ export default function DashboardHero() {
     };
   }, []);
 
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const res = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        setLoggingOut(false);
+        return;
+      }
+      router.push('/login');
+    } catch {
+      setLoggingOut(false);
+    }
+  }
+
   return (
-    <section className={`${spaceGrotesk.className} relative w-full min-w-0`}>
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between md:gap-4">
-        <h1 className="min-w-0 truncate pl-2 text-xl font-bold text-white sm:text-2xl md:text-3xl" title={displayName !== '…' ? `Welcome ${displayName}` : undefined}>
-          Welcome <span id="welcome-name">{displayName}</span>
-        </h1>
+    <>
+      <nav className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="text-base font-semibold tracking-tight text-zinc-100">
+              Agentic Harness
+            </Link>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push('/limit-model-budget')}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
-              transition active:scale-[0.99]
-            "
-          >
-            Limit Model Budget
-          </button>
+            <div className="hidden items-center gap-1 md:flex">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`rounded-md px-3 py-1.5 text-sm transition ${
+                      isActive
+                        ? 'bg-zinc-800 text-zinc-100'
+                        : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => router.push('/test-harness')}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
-              transition active:scale-[0.99]
-            "
-          >
-            Test Harness
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-zinc-800/50 hover:text-zinc-200"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-xs font-medium text-zinc-300">
+                  {displayName ? displayName.charAt(0).toUpperCase() : '?'}
+                </div>
+                <span className="hidden sm:inline">{displayName || 'Account'}</span>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => router.push('/rubrics')}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
-              transition active:scale-[0.99]
-            "
-          >
-            Rubrics
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push('/profile')}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
-              transition active:scale-[0.99]
-            "
-          >
-            Profile
-          </button>
-
-          <button
-            type="button"
-            disabled={loggingOut}
-            onClick={async () => {
-              if (loggingOut) return;
-              setLoggingOut(true);
-              try {
-                const res = await fetch('/api/auth/logout', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                });
-                if (!res.ok) {
-                  setLoggingOut(false);
-                  return;
-                }
-                router.push('/login');
-              } catch {
-                setLoggingOut(false);
-              }
-            }}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
-              shadow-[0_8px_40px_rgba(255,255,255,0.06)]
-              transition active:scale-[0.99]
-              disabled:opacity-60
-            "
-          >
-            {loggingOut ? 'Signing out…' : 'Logout'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="
-              rounded-lg px-4 py-2 text-white
-              bg-red-500/20 hover:bg-red-500/25 ring-1 ring-red-400/40
-              shadow-[0_8px_40px_rgba(244,63,94,0.20)]
-              transition active:scale-[0.99]
-            "
-          >
-            Delete Account
-          </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 z-50 mt-1 w-48 rounded-lg border border-zinc-800 bg-zinc-900 py-1 shadow-xl">
+                    <Link
+                      href="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="block px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                    >
+                      Profile Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        handleLogout();
+                      }}
+                      disabled={loggingOut}
+                      className="block w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50"
+                    >
+                      {loggingOut ? 'Signing out...' : 'Sign out'}
+                    </button>
+                    <div className="my-1 border-t border-zinc-800" />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setOpen(true);
+                      }}
+                      className="block w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-800 hover:text-red-300"
+                    >
+                      Delete Account
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </nav>
 
       <DeleteAccountModal open={open} onClose={() => setOpen(false)} />
-    </section>
+    </>
   );
 }

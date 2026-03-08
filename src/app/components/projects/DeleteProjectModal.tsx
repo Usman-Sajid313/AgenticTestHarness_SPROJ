@@ -1,12 +1,6 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { Space_Grotesk } from "next/font/google";
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 type Props = {
   open: boolean;
@@ -48,32 +42,32 @@ export default function DeleteProjectModal({
 
   return (
     <div
-      className={`${spaceGrotesk.className} fixed inset-0 z-50 flex items-center justify-center`}
+      className="fixed inset-0 z-50 flex items-center justify-center"
       aria-modal="true"
       role="dialog"
     >
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white/5 p-6 ring-1 ring-white/10 backdrop-blur-xl shadow-2xl neon">
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl">
         <div className="mb-4 flex items-start justify-between">
-          <h3 className="text-lg font-semibold text-white">Delete project</h3>
+          <h3 className="text-lg font-semibold text-zinc-100">Delete project</h3>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md px-2 py-1 text-white/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+            className="rounded-md px-2 py-1 text-zinc-500 hover:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-600"
           >
             ✕
           </button>
         </div>
 
-        <p className="mb-5 text-sm leading-relaxed text-white/80">
+        <p className="mb-5 text-sm leading-relaxed text-zinc-400">
           Are you sure you want to delete this project? It will delete all of its
           data.
           {projectName && (
-            <span className="mt-2 block font-medium text-white">
+            <span className="mt-2 block font-medium text-zinc-100">
               &ldquo;{projectName}&rdquo;
             </span>
           )}
@@ -89,8 +83,8 @@ export default function DeleteProjectModal({
             onClick={onClose}
             disabled={submitting}
             className="
-              rounded-lg px-4 py-2 text-white
-              bg-white/10 ring-1 ring-white/20 hover:bg-white/15
+              rounded-lg px-4 py-2
+              bg-zinc-800 text-zinc-300 hover:bg-zinc-700
               transition active:scale-[0.99] disabled:opacity-60
             "
           >
@@ -101,9 +95,8 @@ export default function DeleteProjectModal({
             disabled={submitting}
             onClick={handleDelete}
             className="
-              rounded-lg px-4 py-2 text-white
-              bg-red-500/20 ring-1 ring-red-400/40 hover:bg-red-500/25
-              shadow-[0_8px_40px_rgba(244,63,94,0.20)]
+              rounded-lg px-4 py-2
+              bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20
               transition active:scale-[0.99] disabled:opacity-60
             "
           >

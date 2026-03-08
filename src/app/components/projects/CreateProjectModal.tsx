@@ -45,14 +45,14 @@ export default function CreateProjectModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-white/5 p-8 ring-1 ring-white/10">
-        <h2 className="text-xl font-semibold text-white mb-4">
+      <div className="w-full max-w-lg rounded-xl bg-zinc-900 border border-zinc-800 p-8 shadow-2xl">
+        <h2 className="text-xl font-semibold text-zinc-100 mb-4">
           Create New Project
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-white/80 mb-2 text-sm">
+            <label className="block text-zinc-400 mb-2 text-sm">
               Project Name
             </label>
             <input
@@ -62,13 +62,13 @@ export default function CreateProjectModal({
                 setName(e.target.value)
               }
               required
-              className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:ring-purple-500/50 outline-none"
+              className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 outline-none"
               placeholder="My Agent"
             />
           </div>
 
           <div>
-            <label className="block text-white/80 mb-2 text-sm">
+            <label className="block text-zinc-400 mb-2 text-sm">
               Agent Description
             </label>
             <textarea
@@ -78,7 +78,7 @@ export default function CreateProjectModal({
               }
               required
               rows={4}
-              className="w-full rounded-xl bg-black/30 px-4 py-2 text-white ring-1 ring-white/10 focus:ring-purple-500/50 outline-none"
+              className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2 text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 outline-none"
               placeholder="Describe what the agent does…"
             />
           </div>
@@ -87,14 +87,14 @@ export default function CreateProjectModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20"
+              className="px-4 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:bg-purple-900/40"
+              className="px-5 py-2 rounded-lg bg-zinc-100 text-zinc-900 font-medium hover:bg-zinc-200 disabled:opacity-50"
             >
               {loading ? "Creating…" : "Create Project"}
             </button>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSessionUser } from '@/lib/auth';
 import { z, ZodError } from 'zod';
+import { authCookieName, authCookieOptions } from '@/lib/authCookie';
 
 const REQUIRED_SENTENCE =
   'I understand this action will permanently delete my account';
@@ -43,13 +44,9 @@ export async function POST(req: Request) {
 
     const res = new NextResponse(null, { status: 204 });
     res.cookies.set({
-      name: '__auth',
+      name: authCookieName(),
       value: '',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-      maxAge: 0,
+      ...authCookieOptions(req, 0),
     });
     return res;
   } catch (err: unknown) {
@@ -63,5 +60,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
-
-export const DELETE_ACCOUNT_SENTENCE = REQUIRED_SENTENCE;

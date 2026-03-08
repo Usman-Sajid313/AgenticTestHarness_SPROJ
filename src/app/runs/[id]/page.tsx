@@ -21,7 +21,7 @@ export default async function RunPage(context: {
 
   if (!run) {
     return (
-      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <p>Run not found.</p>
       </main>
     );
@@ -108,11 +108,8 @@ export default async function RunPage(context: {
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-black">
-      <div className="absolute inset-0 bg-deep-space" />
-      <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
-
-      <div className="relative mx-auto max-w-5xl px-6 py-16">
+    <main className="min-h-screen w-full bg-zinc-950">
+      <div className="mx-auto max-w-5xl px-6 py-16">
         <RunView initialRun={run} initialEvaluation={evaluation as RunViewEvaluation | null} />
       </div>
     </main>

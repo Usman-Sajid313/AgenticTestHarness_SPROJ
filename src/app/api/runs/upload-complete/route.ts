@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSupabaseServerClient } from "@/lib/supabase";
+import { getPublicUrl } from "@/lib/storage";
 import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
@@ -16,8 +16,6 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-
-  const supabaseServerClient = getSupabaseServerClient();
 
   const run = await prisma.agentRun.findUnique({
     where: { id: runId },
@@ -35,9 +33,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: pubData } = supabaseServerClient.storage
-    .from("agent-logs")
-    .getPublicUrl(storageKey);
+  const publicUrl = getPublicUrl(storageKey);
 
   const logfile = run.logfiles[0];
   if (logfile) {
@@ -45,7 +41,7 @@ export async function POST(req: Request) {
       where: { id: logfile.id },
       data: {
         storageKey,
-        url: pubData.publicUrl,
+        url: publicUrl,
         sizeBytes: sizeBytes || logfile.sizeBytes,
         checksum: sha256,
       },
@@ -57,7 +53,7 @@ export async function POST(req: Request) {
         projectId: run.projectId,
         uploadedById: user.id,
         storageKey,
-        url: pubData.publicUrl,
+        url: publicUrl,
         sizeBytes: sizeBytes || 0,
         checksum: sha256,
       },
@@ -75,4 +71,3 @@ export async function POST(req: Request) {
     status: "UPLOADED",
   });
 }
-

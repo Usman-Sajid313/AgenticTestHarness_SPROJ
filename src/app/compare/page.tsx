@@ -142,24 +142,21 @@ function ComparePageContent() {
   };
 
   return (
-    <main className="relative min-h-screen w-full bg-black">
-      <div className="absolute inset-0 bg-deep-space" />
-      <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
-
-      <div className="relative mx-auto max-w-7xl px-6 py-12">
+    <main className="min-h-screen w-full bg-zinc-950">
+      <div className="mx-auto max-w-7xl px-6 py-12">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
             {projectId ? (
               <Link
                 href={`/projects/${projectId}`}
-                className="text-sm text-purple-300 hover:text-purple-200 mb-2 inline-block"
+                className="text-sm text-zinc-400 hover:text-zinc-200 mb-2 inline-block"
               >
                 ← Back to Project
               </Link>
             ) : (
               <Link
                 href="/projects"
-                className="text-sm text-purple-300 hover:text-purple-200 mb-2 inline-block"
+                className="text-sm text-zinc-400 hover:text-zinc-200 mb-2 inline-block"
               >
                 ← Back to Projects
               </Link>
@@ -167,7 +164,7 @@ function ComparePageContent() {
             <h1 className="text-3xl font-semibold text-white">
               Run Comparison
             </h1>
-            <p className="mt-2 text-sm text-white/70">
+            <p className="mt-2 text-sm text-zinc-400">
               Compare multiple runs side-by-side to understand improvements and
               regressions
             </p>
@@ -175,7 +172,7 @@ function ComparePageContent() {
           {comparisonData && (
             <button
               onClick={handleExportJSON}
-              className="rounded-lg bg-white/10 px-5 py-2 text-sm text-white ring-1 ring-white/20 transition hover:bg-white/15"
+              className="rounded-lg bg-zinc-800 px-5 py-2 text-sm text-zinc-300 border border-zinc-700 transition hover:bg-zinc-700"
             >
               Export JSON
             </button>
@@ -189,10 +186,10 @@ function ComparePageContent() {
         )}
 
         {loading ? (
-          <div className="flex h-64 items-center justify-center rounded-2xl bg-white/5 p-10 ring-1 ring-white/10 backdrop-blur-xl">
+          <div className="flex h-64 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 p-10">
             <div className="text-center">
-              <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-              <p className="text-white/70">Loading comparison...</p>
+              <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+              <p className="text-zinc-400">Loading comparison...</p>
             </div>
           </div>
         ) : comparisonData ? (
@@ -201,8 +198,8 @@ function ComparePageContent() {
             onRemoveRun={handleRemoveRun}
           />
         ) : (
-          <div className="rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl">
-            <p className="text-white/70">
+          <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-10 text-center">
+            <p className="text-zinc-400">
               {error || "Select runs from a project to compare them"}
             </p>
           </div>
@@ -216,14 +213,12 @@ export default function ComparePage() {
   return (
     <Suspense
       fallback={
-        <main className="relative min-h-screen w-full bg-black">
-          <div className="absolute inset-0 bg-deep-space" />
-          <div className="absolute inset-0 bg-deep-space-anim opacity-70" />
-          <div className="relative mx-auto max-w-7xl px-6 py-12">
-            <div className="flex h-64 items-center justify-center rounded-2xl bg-white/5 p-10 ring-1 ring-white/10 backdrop-blur-xl">
+        <main className="min-h-screen w-full bg-zinc-950">
+          <div className="mx-auto max-w-7xl px-6 py-12">
+            <div className="flex h-64 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 p-10">
               <div className="text-center">
-                <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-                <p className="text-white/70">Loading...</p>
+                <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+                <p className="text-zinc-400">Loading...</p>
               </div>
             </div>
           </div>

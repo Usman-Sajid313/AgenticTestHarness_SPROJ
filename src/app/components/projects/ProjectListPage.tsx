@@ -63,8 +63,8 @@ export default function ProjectListPage({
 
   if (totalCount === 0) {
     return (
-      <div className="mt-10 rounded-2xl bg-white/5 p-10 text-center ring-1 ring-white/10 backdrop-blur-xl">
-        <p className="text-white/70">
+      <div className="mt-10 rounded-xl bg-zinc-900 border border-zinc-800 p-10 text-center">
+        <p className="text-zinc-400">
           No projects found — create one to get started.
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function ProjectListPage({
         {projects.map((proj: Project) => (
           <div
             key={proj.id}
-            className="relative rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-xl hover:bg-white/10 transition"
+            className="relative rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition"
           >
             <button
               type="button"
@@ -93,7 +93,7 @@ export default function ProjectListPage({
                 e.stopPropagation();
                 setDeleteTarget(proj);
               }}
-              className="absolute top-3 right-3 z-10 rounded-lg p-1.5 text-white/50 hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="absolute top-3 right-3 z-10 rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-600"
               aria-label={`Delete project ${proj.name}`}
             >
               <TrashIcon className="h-5 w-5" />
@@ -103,13 +103,13 @@ export default function ProjectListPage({
               href={`/projects/${proj.id}`}
               className="block p-6 pr-12"
             >
-              <h3 className="text-lg font-semibold text-white">{proj.name}</h3>
+              <h3 className="text-lg font-semibold text-zinc-100">{proj.name}</h3>
 
-              <p className="mt-2 text-sm text-white/60 line-clamp-2">
+              <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
                 {proj.description || "No description provided."}
               </p>
 
-              <p className="mt-4 text-xs text-white/40">
+              <p className="mt-4 text-xs text-zinc-500">
                 Created on {new Date(proj.createdAt).toLocaleDateString()}
               </p>
             </Link>
@@ -121,19 +121,19 @@ export default function ProjectListPage({
         <div className="flex justify-center items-center gap-4 mt-6">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="text-white/70 hover:text-white disabled:text-white/30 transition"
+            className="text-zinc-400 hover:text-zinc-100 disabled:text-zinc-600 transition"
             disabled={page === 1}
           >
             Previous
           </button>
 
-          <span className="text-white/60">
+          <span className="text-zinc-500">
             Page {page} of {totalPages}
           </span>
 
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="text-white/70 hover:text-white disabled:text-white/30 transition"
+            className="text-zinc-400 hover:text-zinc-100 disabled:text-zinc-600 transition"
             disabled={page === totalPages}
           >
             Next
