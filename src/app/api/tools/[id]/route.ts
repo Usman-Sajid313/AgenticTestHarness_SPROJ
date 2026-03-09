@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Prisma } from '@prisma/client';
-import { getSessionUser } from '@/lib/auth';
+import { getScopedUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
   toolCreatePayloadSchema,
@@ -28,7 +28,7 @@ function toPrismaJson(value: unknown): Prisma.InputJsonValue {
 export async function GET(_: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
 
-  const user = await getSessionUser();
+  const user = await getScopedUser('read');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -82,7 +82,7 @@ export async function GET(_: NextRequest, context: { params: Promise<{ id: strin
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
 
-  const user = await getSessionUser();
+  const user = await getScopedUser('write');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -196,7 +196,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 export async function DELETE(_: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
 
-  const user = await getSessionUser();
+  const user = await getScopedUser('write');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

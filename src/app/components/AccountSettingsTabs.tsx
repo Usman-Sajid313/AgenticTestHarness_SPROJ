@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import ModelSettingsCard from '@/app/components/ModelSettingsCard';
 import ProfileSettingsCard from '@/app/components/ProfileSettingsCard';
+import ApiTokensCard from '@/app/components/ApiTokensCard';
 
-type TabId = 'profile' | 'models';
+type TabId = 'profile' | 'models' | 'tokens';
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'profile', label: 'Profile' },
   { id: 'models', label: 'Models' },
+  { id: 'tokens', label: 'API Tokens' },
 ];
 
 export default function AccountSettingsTabs() {
@@ -36,7 +38,9 @@ export default function AccountSettingsTabs() {
         })}
       </div>
 
-      {activeTab === 'profile' ? <ProfileSettingsCard /> : <ModelSettingsCard />}
+      {activeTab === 'profile' && <ProfileSettingsCard />}
+      {activeTab === 'models' && <ModelSettingsCard />}
+      {activeTab === 'tokens' && <ApiTokensCard />}
     </div>
   );
 }

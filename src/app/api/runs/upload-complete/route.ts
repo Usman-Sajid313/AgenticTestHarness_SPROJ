@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPublicUrl } from "@/lib/storage";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   const { runId, storageKey, sha256, sizeBytes } = await req.json();
 
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

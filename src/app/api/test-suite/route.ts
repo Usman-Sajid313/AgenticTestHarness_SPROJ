@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { getScopedUser } from '@/lib/auth';
 import { ensureDefaultSuiteForUser, getRecentRuns } from '@/lib/testSuiteStore';
 import { getMockToolCatalog } from '@/lib/mockToolCatalog';
 import { getConfiguredOpenAIModels } from '@/lib/openaiModels';
 import { getActiveOpenAIKeyMetadata } from '@/lib/openaiKeys';
 
 export async function GET() {
-  const user = await getSessionUser();
+  const user = await getScopedUser('read');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

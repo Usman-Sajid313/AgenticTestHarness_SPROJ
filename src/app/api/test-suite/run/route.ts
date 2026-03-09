@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ChatOpenAI } from '@langchain/openai';
 import { SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage } from '@langchain/core/messages';
-import { getSessionUser } from '@/lib/auth';
+import { getScopedUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getSuiteForUser, recordSuiteRun, type TestRunToolCall } from '@/lib/testSuiteStore';
 import { getMockToolCatalog, type MockToolDefinition } from '@/lib/mockToolCatalog';
@@ -166,7 +166,7 @@ async function closeWriter(writer: WritableStreamDefaultWriter<Uint8Array>) {
 }
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getScopedUser('write');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

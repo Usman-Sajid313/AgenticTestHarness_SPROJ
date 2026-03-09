@@ -1,9 +1,9 @@
-import { getSessionUser } from "@/lib/auth"; // your existing session helper
+import { getScopedUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   const { name, description } = await req.json();
-  const user = await getSessionUser(); // get logged-in user
+  const user = await getScopedUser("write");
 
   if (!user) {
     return new Response("Unauthorized", { status: 401 });

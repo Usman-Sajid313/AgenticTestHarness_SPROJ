@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { evaluateRunFromLogfile } from "@/lib/evaluator";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

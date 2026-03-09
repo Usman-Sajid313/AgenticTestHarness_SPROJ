@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { uploadFile, getPublicUrl } from "@/lib/storage";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   const formData = await req.formData();
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

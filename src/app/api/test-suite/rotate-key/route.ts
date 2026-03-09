@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { getScopedUser } from '@/lib/auth';
 import { getActiveOpenAIKeyMetadata, rotateOpenAIKey } from '@/lib/openaiKeys';
 
 export async function POST() {
-  const user = await getSessionUser();
+  const user = await getScopedUser('write');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -26,7 +26,7 @@ export async function POST() {
 }
 
 export async function GET() {
-  const user = await getSessionUser();
+  const user = await getScopedUser('read');
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
