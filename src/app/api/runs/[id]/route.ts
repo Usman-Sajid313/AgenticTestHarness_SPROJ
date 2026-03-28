@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { MetricBreakdown } from "@/types/evaluation";
+import { getScopedUser } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await getScopedUser("read");
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await context.params;
 
   const run = await prisma.agentRun.findUnique({
@@ -23,6 +29,18 @@ export async function GET(
 
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      userId: user.id,
+      workspaceId: run.project.workspaceId,
+    },
+    select: { id: true },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let evaluation = run.evaluations[0] ?? null;
