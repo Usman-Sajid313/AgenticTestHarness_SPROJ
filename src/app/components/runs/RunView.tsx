@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import type { RunUsageSummary } from "@/lib/runUsage";
 import {
   RadarChart,
   Radar,
@@ -128,6 +129,7 @@ type NormalizedTracePayload = {
 };
 
 type JudgePacketPayload = {
+  meta?: { logQuality?: { totalSteps?: number } };
   traceSummary?: { steps?: TraceStep[] };
   toolInteractions?: ToolInteraction[];
   errors?: TraceError[];
@@ -155,6 +157,7 @@ export type Run = {
   metrics?: RunMetrics | null;
   ruleFlags?: RuleFlag[] | null;
   judgePacket?: RunJudgePacketRecord | null;
+  usageSummary?: RunUsageSummary | null;
 };
 
 interface RunViewProps {
@@ -181,6 +184,9 @@ export default function RunView({
   );
   const [judgePacket, setJudgePacket] = useState<RunJudgePacketRecord | null>(
     initialRun.judgePacket ?? null
+  );
+  const [usageSummary, setUsageSummary] = useState<RunUsageSummary | null>(
+    initialRun.usageSummary ?? null
   );
 
   const evalTriggeredRef = useRef(false);
@@ -272,6 +278,9 @@ export default function RunView({
         if ("judgePacket" in data) {
           setJudgePacket((data.judgePacket as RunJudgePacketRecord | null) ?? null);
         }
+        if ("usageSummary" in data) {
+          setUsageSummary((data.usageSummary as RunUsageSummary | null) ?? null);
+        }
 
         if (data.run.status === "READY_FOR_JUDGING") {
           triggerJudge();
@@ -303,6 +312,7 @@ export default function RunView({
           metrics={metrics}
           ruleFlags={ruleFlags}
           judgePacket={judgePacket}
+          usageSummary={usageSummary}
         />
       ) : isFailed ? (
         <FailedState status={run.status} />
@@ -365,12 +375,14 @@ function ResultState({
   metrics,
   ruleFlags,
   judgePacket,
+  usageSummary,
 }: {
   evaluation: Evaluation;
   traceSummary: RunTraceSummaryRecord | null;
   metrics: RunMetrics | null;
   ruleFlags: RuleFlag[];
   judgePacket: RunJudgePacketRecord | null;
+  usageSummary: RunUsageSummary | null;
 }) {
   const breakdown = evaluation.metricBreakdown;
   const scorecard = parseFinalScorecard(evaluation.finalScorecard);
@@ -486,6 +498,8 @@ function ResultState({
         <PanelScoresCard panel={evaluation.geminiJudgement.panel} finalScore={score} />
       )}
 
+      <RunUsageCard usageSummary={usageSummary} />
+
       <TraceExplorer
         traceSummary={traceSummary}
         metrics={metrics}
@@ -591,7 +605,13 @@ function TraceExplorer({
     normalizedTrace?.toolInteractions ?? packet?.toolInteractions ?? [];
   const errors = normalizedTrace?.errors ?? packet?.errors ?? [];
   const retries = normalizedTrace?.retries ?? packet?.retries ?? [];
-  const effectiveMetrics = normalizedTrace?.metrics ?? packet?.metrics ?? metrics;
+  const effectiveMetrics = mergeTraceMetrics(
+    metrics,
+    packet?.metrics,
+    normalizedTrace?.metrics,
+    traceSteps.length,
+    packet?.meta?.logQuality?.totalSteps
+  );
   const effectiveRuleFlags =
     (normalizedTrace?.ruleFlags && normalizedTrace.ruleFlags.length > 0
       ? normalizedTrace.ruleFlags
@@ -865,6 +885,58 @@ function MetricChip({ label, value }: { label: string; value: number | string })
   );
 }
 
+function RunUsageCard({ usageSummary }: { usageSummary: RunUsageSummary | null }) {
+  if (!usageSummary) return null;
+
+  return (
+    <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">Run usage</h2>
+          <p className="text-sm text-zinc-500">
+            Model token and cost summary for this run.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricChip
+          label="Total Model Tokens"
+          value={
+            usageSummary.totalModelTokens != null
+              ? formatInteger(usageSummary.totalModelTokens)
+              : "—"
+          }
+        />
+        <MetricChip
+          label="Total Cost"
+          value={
+            usageSummary.totalCostUsd != null
+              ? formatUsd(usageSummary.totalCostUsd)
+              : "—"
+          }
+        />
+        <MetricChip
+          label="Parser Tokens"
+          value={formatInteger(usageSummary.parseModelTokens)}
+        />
+        <MetricChip
+          label="Judge Tokens"
+          value={
+            usageSummary.judgeModelTokens != null
+              ? formatInteger(usageSummary.judgeModelTokens)
+              : "—"
+          }
+        />
+      </div>
+
+      <p className="mt-4 text-xs leading-relaxed text-zinc-500">
+        {usageSummary.note} Pricing uses {formatUsd(usageSummary.costPerMillionTokens)} per 1M tokens.
+      </p>
+    </div>
+  );
+}
+
 function ProsConsList({ value }: { value?: string }) {
   if (!value || !value.trim()) return <p className="text-sm text-zinc-600">—</p>;
   const items = value
@@ -901,7 +973,10 @@ function parseNormalizedTrace(value?: string): NormalizedTracePayload | null {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    if (Array.isArray(parsed)) {
+      return { trace: parsed as TraceEvent[] };
+    }
+    if (!parsed || typeof parsed !== "object") return null;
     return parsed as NormalizedTracePayload;
   } catch {
     return null;
@@ -948,6 +1023,53 @@ function formatDurationMs(value: number) {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
   return `${minutes}m ${remainingSeconds}s`;
+}
+
+function mergeTraceMetrics(
+  persistedMetrics: RunMetrics | null | undefined,
+  packetMetrics: RunMetrics | undefined,
+  normalizedMetrics: RunMetrics | undefined,
+  traceStepCount: number,
+  packetStepCount?: number
+): RunMetrics | null {
+  const merged: RunMetrics = {
+    totalSteps:
+      normalizedMetrics?.totalSteps ??
+      persistedMetrics?.totalSteps ??
+      packetStepCount ??
+      (traceStepCount > 0 ? traceStepCount : undefined),
+    totalToolCalls:
+      normalizedMetrics?.totalToolCalls ??
+      packetMetrics?.totalToolCalls ??
+      persistedMetrics?.totalToolCalls,
+    totalErrors:
+      normalizedMetrics?.totalErrors ??
+      packetMetrics?.totalErrors ??
+      persistedMetrics?.totalErrors,
+    totalRetries:
+      normalizedMetrics?.totalRetries ??
+      packetMetrics?.totalRetries ??
+      persistedMetrics?.totalRetries,
+    totalDurationMs:
+      normalizedMetrics?.totalDurationMs ??
+      packetMetrics?.totalDurationMs ??
+      persistedMetrics?.totalDurationMs,
+  };
+
+  return Object.values(merged).some((value) => value != null) ? merged : null;
+}
+
+function formatInteger(value: number) {
+  return value.toLocaleString();
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: value < 0.01 ? 4 : 2,
+    maximumFractionDigits: value < 0.01 ? 6 : 2,
+  }).format(value);
 }
 
 function getSeverityClass(severity: string) {

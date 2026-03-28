@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { MetricBreakdown } from "@/types/evaluation";
 import { getScopedUser } from "@/lib/auth";
+import { getRunUsageSummary } from "@/lib/runUsage";
 
 export async function GET(
   req: NextRequest,
@@ -106,12 +107,18 @@ export async function GET(
     }
   }
 
+  const usageSummary = await getRunUsageSummary(id);
+
   return NextResponse.json({
-    run,
+    run: {
+      ...run,
+      usageSummary,
+    },
     evaluation,
     traceSummary: run.traceSummary,
     metrics: run.metrics,
     ruleFlags: run.ruleFlags,
+    usageSummary,
     judgePacket: run.judgePacket ? {
       ...run.judgePacket,
       packet: run.judgePacket.packet ? JSON.parse(run.judgePacket.packet) : null,

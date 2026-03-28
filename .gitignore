@@ -44,6 +44,7 @@ next-env.d.ts
 
 # local/public sample datasets (do not version)
 /public_data/
+/tmp-local/
 
 # local agent context
 AGENTS.md

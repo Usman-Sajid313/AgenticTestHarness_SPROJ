@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import RunView, { type Evaluation as RunViewEvaluation } from "@/app/components/runs/RunView";
 import type { MetricBreakdown, Evaluation } from "@/types/evaluation";
+import { getRunUsageSummary } from "@/lib/runUsage";
 
 export default async function RunPage(context: {
   params: Promise<{ id: string }>;
@@ -107,10 +108,18 @@ export default async function RunPage(context: {
     }
   }
 
+  const usageSummary = await getRunUsageSummary(id);
+
   return (
     <main className="min-h-screen w-full bg-zinc-950">
       <div className="mx-auto max-w-5xl px-6 py-16">
-        <RunView initialRun={run} initialEvaluation={evaluation as RunViewEvaluation | null} />
+        <RunView
+          initialRun={{
+            ...run,
+            usageSummary,
+          }}
+          initialEvaluation={evaluation as RunViewEvaluation | null}
+        />
       </div>
     </main>
   );
