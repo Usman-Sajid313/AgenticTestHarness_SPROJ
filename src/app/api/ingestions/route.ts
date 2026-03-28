@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
 import { parseRun } from "@/lib/parser";
 
@@ -14,7 +14,7 @@ type IngestionRequest = {
 };
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

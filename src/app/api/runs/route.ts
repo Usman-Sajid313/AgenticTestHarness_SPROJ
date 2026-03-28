@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
   const { projectId } = await req.json();
 
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const project = await prisma.project.findFirst({

@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 const AUTH_COOKIE = '__auth';
 const PUBLIC_PAGE_PATHS = new Set<string>(['/login', '/signup']);
 const PUBLIC_API_PREFIXES = ['/api/auth', '/api/mock']; 
+const SESSION_ONLY_API_PREFIXES = ['/api/account'];
 
 function isStaticAsset(pathname: string) {
   return (
@@ -19,6 +20,15 @@ function isStaticAsset(pathname: string) {
 
 function isPublicApi(pathname: string) {
   return PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+function isSessionOnlyApi(pathname: string) {
+  return SESSION_ONLY_API_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+function hasBearerToken(req: NextRequest): boolean {
+  const authHeader = req.headers.get('authorization');
+  return !!authHeader && authHeader.toLowerCase().startsWith('bearer ');
 }
 
 async function hasValidJwt(req: NextRequest): Promise<boolean> {
@@ -60,6 +70,15 @@ export default async function middleware(req: NextRequest) {
 
   const authed = await hasValidJwt(req);
   if (authed) {
+    return NextResponse.next();
+  }
+
+  // Allow API requests with Bearer tokens through to route handlers
+  // (actual token validation happens in getSessionUser via headers())
+  if (isApi && hasBearerToken(req)) {
+    if (isSessionOnlyApi(pathname)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.next();
   }
 

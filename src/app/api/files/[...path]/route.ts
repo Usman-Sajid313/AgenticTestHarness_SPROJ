@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
 import * as nodePath from "path";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getUploadsDir } from "@/lib/storage";
 
@@ -17,7 +17,7 @@ export async function GET(
   _req: Request,
   context: { params: Promise<{ path: string[] }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("read");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

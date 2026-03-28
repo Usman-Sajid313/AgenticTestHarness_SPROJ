@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 import { validateJudgeBudget } from "@/lib/runBudgetValidator";
 import { judgeRun } from "@/lib/judger";
 
@@ -8,7 +8,7 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

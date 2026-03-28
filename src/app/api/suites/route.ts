@@ -1,6 +1,6 @@
 // Import required modules and utilities
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { getScopedUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z, ZodError } from 'zod';
 
@@ -12,7 +12,7 @@ const deleteSuiteSchema = z.object({
 // Handler for deleting an existing test suite
 export async function DELETE(req: Request) {
   // Authenticate user
-  const user = await getSessionUser();
+    const user = await getScopedUser('write');
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
+import { getScopedUser } from "@/lib/auth";
 import { z } from "zod";
 
 // Validation schema for rubric dimensions
@@ -25,7 +25,7 @@ const RubricSchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("read");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getScopedUser("write");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
