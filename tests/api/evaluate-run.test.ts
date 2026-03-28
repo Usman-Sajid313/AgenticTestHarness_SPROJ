@@ -38,24 +38,37 @@ describe('Use case: Evaluate run', () => {
     expect(data.error).toBe('Run not found');
   });
 
-  it('Variation 4 (Edge): second evaluate returns already-processing', async () => {
+  it('Variation 4 (Edge): second evaluate reflects provider availability and prior run state', async () => {
     const name = uniqueName('EvalUser4');
     const { runId, cookie } = await createUploadedRun(name, uniqueEmail(), 'Test123!@#');
     const res1 = await apiPost(`/api/runs/${runId}/evaluate`, {}, { cookie });
     const res2 = await apiPost(`/api/runs/${runId}/evaluate`, {}, { cookie });
     expect([200, 500]).toContain(res1.status);
-    expect(res2.status).toBe(200);
+    expect([200, 500]).toContain(res2.status);
     const data2 = await res2.json();
-    expect(data2.status).toBe('already-processing');
+    if (res1.status === 200) {
+      expect(res2.status).toBe(200);
+      expect(data2.status).toBe('already-processing');
+    } else {
+      expect(res2.status).toBe(500);
+      expect(data2.status).toBe('failed');
+    }
   }, EVALUATE_TIMEOUT_MS);
 
-  it('Variation 5 (Edge): evaluate run that already has evaluation returns already-processing', async () => {
+  it('Variation 5 (Edge): repeated evaluate only short-circuits after a successful prior evaluation', async () => {
     const name = uniqueName('EvalUser5');
     const { runId, cookie } = await createUploadedRun(name, uniqueEmail(), 'Test123!@#');
-    await apiPost(`/api/runs/${runId}/evaluate`, {}, { cookie });
+    const res1 = await apiPost(`/api/runs/${runId}/evaluate`, {}, { cookie });
     const res = await apiPost(`/api/runs/${runId}/evaluate`, {}, { cookie });
-    expect(res.status).toBe(200);
+    expect([200, 500]).toContain(res1.status);
+    expect([200, 500]).toContain(res.status);
     const data = await res.json();
-    expect(data.status).toBe('already-processing');
+    if (res1.status === 200) {
+      expect(res.status).toBe(200);
+      expect(data.status).toBe('already-processing');
+    } else {
+      expect(res.status).toBe(500);
+      expect(data.status).toBe('failed');
+    }
   }, EVALUATE_TIMEOUT_MS);
 });

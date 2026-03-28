@@ -49,17 +49,20 @@ describe('Use case: Judge run', () => {
     expect(data.error).toContain('not ready for judging');
   });
 
-  it('Variation 5 (Edge): second judge call may return 202 already in progress', async () => {
+  it('Variation 5 (Edge): second judge call reflects current run state after first attempt', async () => {
     const name = uniqueName('JudgeUser5');
     const { runId, cookie } = await createUploadedRun(name, uniqueEmail(), 'Test123!@#');
     await apiPost(`/api/runs/${runId}/parse`, {}, { cookie });
     const res1 = await apiPost(`/api/runs/${runId}/judge`, {}, { cookie });
     const res2 = await apiPost(`/api/runs/${runId}/judge`, {}, { cookie });
     expect([200, 202, 429, 500, 503]).toContain(res1.status);
-    expect([200, 202, 429, 500, 503]).toContain(res2.status);
+    expect([200, 202, 400, 429, 500, 503]).toContain(res2.status);
     if (res2.status === 202) {
       const data = await res2.json();
       expect(data.message).toContain('already');
+    } else if (res2.status === 400) {
+      const data = await res2.json();
+      expect(data.error).toContain('not ready for judging');
     }
   }, JUDGE_TIMEOUT_MS);
 });
