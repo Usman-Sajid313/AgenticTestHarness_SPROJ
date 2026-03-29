@@ -491,6 +491,86 @@ export async function parseRun(params: {
 // Pure logic helpers (ported verbatim from the edge function)
 // ---------------------------------------------------------------------------
 
+export function previewParseLog(params: {
+  text: string;
+  sourceType?: string;
+  formatHint?: string;
+  mappingConfig?: Record<string, unknown> | null;
+}): {
+  normalizedText: string;
+  events: ParsedEvent[];
+  strictReport: StrictParseReport;
+  sourceMeta: Record<string, unknown>;
+  toolInteractions: ToolInteraction[];
+  steps: Array<{
+    stepNumber: number;
+    description: string;
+    keyEventIds: string[];
+    timestamp?: string;
+  }>;
+  task: {
+    text: string;
+    confidence: number;
+    sourceEventIds: string[];
+  };
+  metrics: {
+    totalToolCalls: number;
+    totalErrors: number;
+    totalRetries: number;
+    totalDurationMs?: number;
+  };
+  ruleFlags: Array<{
+    flagType: string;
+    severity: "low" | "medium" | "high";
+    message: string;
+    evidenceEventIds: string[];
+  }>;
+  redactionReport: {
+    patternsMatched: string[];
+    redactedCount: number;
+  };
+  judgePacket: JudgePacket;
+} {
+  const normalizedText = normalizeText(params.text);
+  const adapterResult = parseWithAdapters(normalizedText, {
+    sourceType: params.sourceType,
+    formatHint: params.formatHint,
+    mappingConfig: params.mappingConfig,
+  });
+  const events = adapterResult.events;
+  const toolInteractions = linkToolCalls(events);
+  const steps = segmentSteps(events);
+  const task = extractTask(events);
+  const metrics = computeMetrics(events, toolInteractions);
+  const ruleFlags = computeRuleFlags(events, toolInteractions);
+  const { redactedEvents, redactionReport } = redactSecrets(events);
+  const judgePacket = buildJudgePacket(
+    events,
+    redactedEvents,
+    toolInteractions,
+    steps,
+    task,
+    metrics,
+    ruleFlags,
+    redactionReport,
+    adapterResult.strictReport.detectedFormat
+  );
+
+  return {
+    normalizedText,
+    events,
+    strictReport: adapterResult.strictReport,
+    sourceMeta: adapterResult.sourceMeta,
+    toolInteractions,
+    steps,
+    task,
+    metrics,
+    ruleFlags,
+    redactionReport,
+    judgePacket,
+  };
+}
+
 function normalizeText(text: string): string {
   // Normalize line endings to \n
   let normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -1644,28 +1724,42 @@ function redactSecrets(events: ParsedEvent[]): {
 
   const patternsMatched: string[] = [];
   let redactedCount = 0;
-  const redactedEvents = events.map((event) => {
-    const eventStr = JSON.stringify(event.data);
-    let redactedStr = eventStr;
-
-    for (const pattern of patterns) {
-      if (pattern.test(redactedStr)) {
-        patternsMatched.push(pattern.source);
-        redactedStr = redactedStr.replace(pattern, () => {
+  const redactValue = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      let redacted = value;
+      for (const pattern of patterns) {
+        let matched = false;
+        redacted = redacted.replace(new RegExp(pattern.source, pattern.flags), () => {
+          matched = true;
           redactedCount++;
           return "[REDACTED]";
         });
+        if (matched) {
+          patternsMatched.push(pattern.source);
+        }
       }
+      return redacted;
     }
 
-    if (redactedStr !== eventStr) {
-      return {
-        ...event,
-        data: JSON.parse(redactedStr),
-      };
+    if (Array.isArray(value)) {
+      return value.map((item) => redactValue(item));
     }
-    return event;
-  });
+
+    if (isObject(value)) {
+      const result: Record<string, unknown> = {};
+      for (const [key, nestedValue] of Object.entries(value)) {
+        result[key] = redactValue(nestedValue);
+      }
+      return result;
+    }
+
+    return value;
+  };
+
+  const redactedEvents = events.map((event) => ({
+    ...event,
+    data: redactValue(event.data) as Record<string, unknown>,
+  }));
 
   return {
     redactedEvents,

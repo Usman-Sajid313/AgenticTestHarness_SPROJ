@@ -131,16 +131,21 @@ def upload_log(
     api_key: str,
     project_id: str,
     file_path: Path,
-    source_type: str,
+    source_type: str | None,
+    format_hint: str | None,
+    mapping_config: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    body, content_type = encode_multipart(
-        {
-            "projectId": project_id,
-            "sourceType": source_type,
-        },
-        "file",
-        file_path,
-    )
+    fields = {
+        "projectId": project_id,
+    }
+    if source_type:
+        fields["sourceType"] = source_type
+    if format_hint:
+        fields["formatHint"] = format_hint
+    if mapping_config is not None:
+        fields["mappingConfig"] = json.dumps(mapping_config)
+
+    body, content_type = encode_multipart(fields, "file", file_path)
     payload = http_request(
         "POST",
         f"{base_url}/api/runs/upload-logfile",
@@ -248,7 +253,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source-type",
         default="generic_jsonl",
-        help="Source type sent with upload-logfile. Defaults to generic_jsonl.",
+        help="Optional source type sent with upload-logfile. Defaults to generic_jsonl.",
+    )
+    parser.add_argument(
+        "--format-hint",
+        choices=["json", "jsonl", "text"],
+        help="Optional format hint sent with upload-logfile.",
+    )
+    parser.add_argument(
+        "--mapping-config-json",
+        help="Inline JSON object to send as mappingConfig during upload.",
+    )
+    parser.add_argument(
+        "--mapping-config-file",
+        help="Path to a JSON file to send as mappingConfig during upload.",
     )
     parser.add_argument(
         "--timeout-seconds",
@@ -286,6 +304,39 @@ def main() -> int:
     log(f"Using base URL: {base_url}")
     log(f"Using log file: {file_path}")
 
+    if args.mapping_config_json and args.mapping_config_file:
+        print(
+            "Pass only one of --mapping-config-json or --mapping-config-file.",
+            file=sys.stderr,
+        )
+        return 2
+
+    mapping_config: dict[str, Any] | None = None
+    if args.mapping_config_json:
+        try:
+            raw = json.loads(args.mapping_config_json)
+        except json.JSONDecodeError as exc:
+            print(f"Invalid --mapping-config-json: {exc}", file=sys.stderr)
+            return 2
+        if not isinstance(raw, dict):
+            print("--mapping-config-json must decode to a JSON object.", file=sys.stderr)
+            return 2
+        mapping_config = raw
+    elif args.mapping_config_file:
+        mapping_path = Path(args.mapping_config_file).expanduser().resolve()
+        if not mapping_path.is_file():
+            print(f"Mapping config file not found: {mapping_path}", file=sys.stderr)
+            return 2
+        try:
+            raw = json.loads(mapping_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"Invalid JSON in mapping config file: {exc}", file=sys.stderr)
+            return 2
+        if not isinstance(raw, dict):
+            print("Mapping config file must contain a JSON object.", file=sys.stderr)
+            return 2
+        mapping_config = raw
+
     try:
         if args.project_id:
             project_id = args.project_id
@@ -301,7 +352,15 @@ def main() -> int:
             log(f"Created project: {project_id}")
 
         log("Uploading log file and creating run")
-        upload = upload_log(base_url, args.api_key, project_id, file_path, args.source_type)
+        upload = upload_log(
+            base_url,
+            args.api_key,
+            project_id,
+            file_path,
+            args.source_type,
+            args.format_hint,
+            mapping_config,
+        )
         run_id = str(upload["runId"])
         log(f"Upload complete: runId={run_id}, status={upload.get('status')}")
 

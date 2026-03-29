@@ -1,0 +1,46 @@
+[
+  {
+    "entry_ref": "mapped_evt_001",
+    "session_ref": "mapped_001",
+    "kind": "user_prompt",
+    "when": "2026-02-08T11:00:00.000Z",
+    "payload": {
+      "text": "Find a 2-day Rome itinerary with museum time and one pasta spot."
+    }
+  },
+  {
+    "entry_ref": "mapped_evt_002",
+    "session_ref": "mapped_001",
+    "kind": "tool_start",
+    "when": "2026-02-08T11:00:01.000Z",
+    "payload": {
+      "name": "museum.search",
+      "args": {
+        "city": "Rome",
+        "category": "art"
+      }
+    }
+  },
+  {
+    "entry_ref": "mapped_evt_003",
+    "session_ref": "mapped_001",
+    "kind": "tool_end",
+    "when": "2026-02-08T11:00:02.000Z",
+    "payload": {
+      "name": "museum.search",
+      "result": {
+        "top_pick": "Galleria Borghese",
+        "score": 0.94
+      }
+    }
+  },
+  {
+    "entry_ref": "mapped_evt_004",
+    "session_ref": "mapped_001",
+    "kind": "assistant_final",
+    "when": "2026-02-08T11:00:03.000Z",
+    "payload": {
+      "text": "Use the Colosseum, Borghese, and Trastevere dining."
+    }
+  }
+]

@@ -1,0 +1,10 @@
+{"run_id":"lc_demo_001","event":"chain_start","name":"city_trip_planner","timestamp":"2026-03-11T14:20:00.000Z","input":{"question":"Build a three-day Madrid plan with transit-friendly hotel and backup rainy-day options."}}
+{"run_id":"lc_demo_001","event":"tool_start","name":"hotel_search","timestamp":"2026-03-11T14:20:01.000Z","tool_input":{"city":"Madrid","max_price_usd":150,"nights":3}}
+{"run_id":"lc_demo_001","event":"tool_end","name":"hotel_search","timestamp":"2026-03-11T14:20:02.000Z","output":{"hotels":[{"name":"Centro Suites","price_usd":145,"metro":"Sol"},{"name":"Atocha Stay","price_usd":132,"metro":"Atocha"}]}}
+{"run_id":"lc_demo_001","event":"tool_start","name":"route_planner","timestamp":"2026-03-11T14:20:03.000Z","tool_input":{"from":"airport","to":"hotel","mode":"transit"}}
+{"run_id":"lc_demo_001","event":"tool_end","name":"route_planner","timestamp":"2026-03-11T14:20:04.000Z","output":{"route":"Metro Line 8, transfer to Line 1","travel_time_min":42}}
+{"run_id":"lc_demo_001","event":"tool_start","name":"weather_check","timestamp":"2026-03-11T14:20:05.000Z","tool_input":{"city":"Madrid","days":3}}
+{"run_id":"lc_demo_001","event":"tool_end","name":"weather_check","timestamp":"2026-03-11T14:20:06.000Z","output":{"status":"temporary_error","message":"timeout talking to weather provider"}}
+{"run_id":"lc_demo_001","event":"tool_start","name":"weather_check","timestamp":"2026-03-11T14:20:07.000Z","tool_input":{"city":"Madrid","days":3,"retry":1}}
+{"run_id":"lc_demo_001","event":"tool_end","name":"weather_check","timestamp":"2026-03-11T14:20:08.000Z","output":{"forecast":[{"day":"Day 1","summary":"Clear"},{"day":"Day 2","summary":"Cloudy"},{"day":"Day 3","summary":"Rain"}]}}
+{"run_id":"lc_demo_001","event":"chain_end","name":"city_trip_planner","timestamp":"2026-03-11T14:20:09.000Z","output":{"answer":"Stay near Sol, use Metro Line 8 on arrival, and shift Prado plus Retiro to the clear day while keeping museums as rainy-day backups."}}

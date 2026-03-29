@@ -1,0 +1,79 @@
+[
+  {
+    "query": "Plan a 2-day Tokyo trip with weather-aware indoor options and one sushi dinner.",
+    "tool list": [
+      {
+        "tool name": "weather.lookup",
+        "tool description": "Fetch forecast for trip planning",
+        "required parameters": [
+          { "name": "city", "value": "Tokyo" },
+          { "name": "days", "value": 2 }
+        ],
+        "executed_output": {
+          "forecast": [
+            { "day": "Day 1", "summary": "Rain", "temp_c": 11 },
+            { "day": "Day 2", "summary": "Clear", "temp_c": 18 }
+          ]
+        },
+        "execution_status": "success"
+      },
+      {
+        "tool name": "restaurant.search",
+        "tool description": "Find dinner options near the hotel",
+        "required parameters": [
+          { "name": "city", "value": "Tokyo" },
+          { "name": "cuisine", "value": "sushi" }
+        ],
+        "executed_output": {
+          "candidates": [
+            { "name": "Sushi K", "price_usd": 85 },
+            { "name": "Mori Bar", "price_usd": 60 }
+          ]
+        },
+        "execution_status": "success"
+      }
+    ],
+    "final_answer": {
+      "answer": "Day 1: indoor museums and ramen. Day 2: Asakusa, Ueno Park, and a sushi dinner.",
+      "reason": "Weather favors indoor-first routing on day 1."
+    },
+    "generation_info": {
+      "timestamp": "2026-02-08T09:00:00.000Z"
+    },
+    "trajectory_type": "travel_planner",
+    "domain": "travel"
+  },
+  {
+    "query": "Plan a 3-day Lisbon work trip with one walking tour and airport transfer.",
+    "tool list": [
+      {
+        "tool name": "flight.status",
+        "tool description": "Check arrival timing",
+        "required parameters": [
+          { "name": "flight_number", "value": "TP123" }
+        ],
+        "executed_output": "On time",
+        "execution_status": "success"
+      },
+      {
+        "tool name": "ground.transport",
+        "tool description": "Book airport transfer",
+        "required parameters": [
+          { "name": "pickup", "value": "LIS" },
+          { "name": "dropoff", "value": "city center" }
+        ],
+        "executed_output": "Booked sedan transfer for 15:40 arrival.",
+        "execution_status": "success"
+      }
+    ],
+    "final_answer": {
+      "answer": "Stay in Baixa, take a tram-based walking route, and schedule the transfer for landing.",
+      "reason": "The itinerary keeps commute time low for a short business trip."
+    },
+    "generation_info": {
+      "timestamp": "2026-02-08T10:00:00.000Z"
+    },
+    "trajectory_type": "business_travel",
+    "domain": "travel"
+  }
+]

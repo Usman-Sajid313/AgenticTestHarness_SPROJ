@@ -1,0 +1,7 @@
+USER: Plan a weekend trip to Kyoto with a tea ceremony and a compact budget.
+THOUGHT: Need to check transit, weather, and one food reservation.
+TOOL_CALL: weather.lookup city=Kyoto days=2
+TOOL_RESULT: weather.lookup -> cloudy morning, clear afternoon, 14C high
+TOOL_CALL: transit.search route=KIX_to_Kyoto
+TOOL_RESULT: transit.search -> rapid train recommended, 75 minutes
+ASSISTANT: Day 1 focuses on Gion and Nishiki Market; Day 2 adds Arashiyama and a tea ceremony.
