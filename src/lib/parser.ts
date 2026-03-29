@@ -13,7 +13,7 @@ const MAX_TOOL_INTERACTION_ARGS_CHARS = 500;
 const MAX_TOOL_INTERACTION_RESULT_CHARS = 1200;
 const MAX_TOOL_INTERACTION_SUMMARY_CHARS = 300;
 
-interface ParsedEvent {
+export interface ParsedEvent {
   id: string;
   type: string;
   timestamp?: string;
@@ -33,13 +33,13 @@ interface ToolInteraction {
   timestamp?: string;
 }
 
-interface ParseContext {
+export interface ParseContext {
   sourceType?: string;
   formatHint?: string;
   mappingConfig?: Record<string, unknown> | null;
 }
 
-interface StrictParseReport {
+export interface StrictParseReport {
   adapterUsed: string;
   detectedFormat: string;
   sourceTypeRequested: string;
@@ -53,7 +53,7 @@ interface StrictParseReport {
   errors: string[];
 }
 
-interface AdapterParseResult {
+export interface AdapterParseResult {
   events: ParsedEvent[];
   sourceMeta: Record<string, unknown>;
   strictReport: StrictParseReport;
@@ -609,6 +609,13 @@ function parseWithAdapters(text: string, context: ParseContext): AdapterParseRes
     },
     strictReport,
   };
+}
+
+export function parseLogTextWithAdapters(
+  text: string,
+  context: ParseContext = {},
+): AdapterParseResult {
+  return parseWithAdapters(text, context);
 }
 
 function openAIAgentsAdapter(): IngestionAdapter {
