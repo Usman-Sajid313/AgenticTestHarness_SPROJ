@@ -185,6 +185,8 @@ export default function ProjectRunsTable({
             const overallDelta = regression?.assessment?.deltas.overallScore.delta ?? null;
             const verdict = regression?.isBaselineRun
               ? "BASELINE"
+              : overallDelta === 0
+              ? "SAME"
               : regression?.assessment?.verdict ?? null;
             const verdictClass =
               verdict === "IMPROVED"

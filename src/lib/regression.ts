@@ -284,6 +284,7 @@ function evaluateRegression(args: {
   ];
 
   const gatePassed = gateResults.every((gate) => gate.passed);
+  const isFlatOverallScore = overallScore.delta === 0;
   const improvedByScore =
     (overallScore.delta ?? 0) > args.config.noiseThreshold ||
     dimensionDeltas.some((entry) => (entry.delta ?? 0) > args.config.noiseThreshold);
@@ -293,6 +294,8 @@ function evaluateRegression(args: {
 
   const verdict: RegressionVerdict = !gatePassed
     ? "REGRESSED"
+    : isFlatOverallScore
+    ? "WITHIN_NOISE"
     : regressedByScore
     ? "REGRESSED"
     : improvedByScore

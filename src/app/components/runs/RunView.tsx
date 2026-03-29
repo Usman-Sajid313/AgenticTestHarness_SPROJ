@@ -1042,6 +1042,10 @@ function RegressionCard({
       : assessment?.verdict === "REGRESSED"
       ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
       : "border-zinc-700 bg-zinc-800 text-zinc-300";
+  const verdictLabel =
+    assessment?.deltas.overallScore.delta === 0
+      ? "SAME"
+      : assessment?.verdict?.replace(/_/g, " ");
 
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
@@ -1056,7 +1060,7 @@ function RegressionCard({
         </div>
         {assessment && (
           <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${verdictClass}`}>
-            {assessment.verdict.replace(/_/g, " ")}
+            {verdictLabel}
           </span>
         )}
         {isBaselineRun && (

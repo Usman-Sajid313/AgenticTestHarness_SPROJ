@@ -228,4 +228,76 @@ describe("regression verdicts", () => {
     expect(context.assessment?.verdict).toBe("WITHIN_NOISE");
     expect(context.assessment?.gatePassed).toBe(true);
   });
+
+  it("treats an equal overall score as same even when one dimension improves", () => {
+    const context = buildRegressionContext({
+      scope: "project",
+      scopeId: "proj_1",
+      scopeName: "Project",
+      config: null,
+      baselineRun: {
+        id: "baseline",
+        createdAt: new Date("2026-03-01T00:00:00.000Z"),
+        evaluation: {
+          totalScore: 84,
+          metricBreakdown: {
+            overallComment: "Baseline",
+            dimensions: {
+              planning: { score: 80 },
+              reliability: { score: 88 },
+            },
+          },
+        },
+        metrics: {
+          totalErrors: 0,
+          totalRetries: 0,
+          totalDurationMs: 5_000,
+        },
+        usageSummary: {
+          parseModelTokens: 0,
+          parseCostUsd: 0,
+          judgeModelTokens: 2_000,
+          judgeCostUsd: 0.2,
+          totalModelTokens: 2_000,
+          totalCostUsd: 0.2,
+          costPerMillionTokens: 100,
+          isEstimated: true,
+          note: "estimated",
+        },
+      },
+      candidateRun: {
+        id: "candidate",
+        createdAt: new Date("2026-03-02T00:00:00.000Z"),
+        evaluation: {
+          totalScore: 84,
+          metricBreakdown: {
+            overallComment: "Candidate",
+            dimensions: {
+              planning: { score: 84 },
+              reliability: { score: 84 },
+            },
+          },
+        },
+        metrics: {
+          totalErrors: 0,
+          totalRetries: 0,
+          totalDurationMs: 4_900,
+        },
+        usageSummary: {
+          parseModelTokens: 0,
+          parseCostUsd: 0,
+          judgeModelTokens: 2_000,
+          judgeCostUsd: 0.2,
+          totalModelTokens: 2_000,
+          totalCostUsd: 0.2,
+          costPerMillionTokens: 100,
+          isEstimated: true,
+          note: "estimated",
+        },
+      },
+    });
+
+    expect(context.assessment?.deltas.overallScore.delta).toBe(0);
+    expect(context.assessment?.verdict).toBe("WITHIN_NOISE");
+  });
 });
