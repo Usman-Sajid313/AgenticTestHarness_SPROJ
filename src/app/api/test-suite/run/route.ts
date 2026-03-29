@@ -10,6 +10,7 @@ import { getMockToolCatalog, type MockToolDefinition } from '@/lib/mockToolCatal
 import { getConfiguredOpenAIModels } from '@/lib/openaiModels';
 import { getActiveOpenAIKey } from '@/lib/openaiKeys';
 import { BudgetTracker, DEFAULT_BUDGETS, type BudgetConfig } from '@/lib/budgetValidator';
+import { executeMockTool } from '@/lib/mockToolExecution';
 
 const RunRequestSchema = z.object({
   temperature: z.number().min(0).max(1).optional(),
@@ -94,39 +95,6 @@ function mapToOpenAITool(def: MockToolDefinition): OpenAITool {
       description: def.description,
       parameters: buildToolJsonSchema(def),
     },
-  };
-}
-
-async function executeMockTool(def: MockToolDefinition, origin: string, input: Record<string, unknown>) {
-  const startedAt = Date.now();
-  const url = new URL(def.path, origin);
-
-  let response: Response;
-  if (def.method === 'GET') {
-    for (const [key, value] of Object.entries(input)) {
-      if (value === undefined || value === null) continue;
-      url.searchParams.set(key, String(value));
-    }
-    response = await fetch(url.toString(), { method: 'GET', cache: 'no-store' });
-  } else {
-    response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input ?? {}),
-    });
-  }
-
-  const latency = Date.now() - startedAt;
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`HTTP ${response.status}: ${text || 'Failed to call tool endpoint.'}`);
-  }
-
-  const json = await response.json();
-  return {
-    latency,
-    data: json,
   };
 }
 
