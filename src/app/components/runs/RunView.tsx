@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { RunUsageSummary } from "@/lib/runUsage";
+import type { RegressionContext } from "@/lib/regression";
 import {
   RadarChart,
   Radar,
@@ -151,6 +152,11 @@ export type Run = {
   id: string;
   status: string;
   project?: {
+    id?: string;
+    name: string;
+  } | null;
+  testSuite?: {
+    id: string;
     name: string;
   } | null;
   traceSummary?: RunTraceSummaryRecord | null;
@@ -158,6 +164,8 @@ export type Run = {
   ruleFlags?: RuleFlag[] | null;
   judgePacket?: RunJudgePacketRecord | null;
   usageSummary?: RunUsageSummary | null;
+  projectRegression?: RegressionContext | null;
+  suiteRegression?: RegressionContext | null;
 };
 
 interface RunViewProps {
@@ -187,6 +195,12 @@ export default function RunView({
   );
   const [usageSummary, setUsageSummary] = useState<RunUsageSummary | null>(
     initialRun.usageSummary ?? null
+  );
+  const [projectRegression, setProjectRegression] = useState<RegressionContext | null>(
+    initialRun.projectRegression ?? null
+  );
+  const [suiteRegression, setSuiteRegression] = useState<RegressionContext | null>(
+    initialRun.suiteRegression ?? null
   );
 
   const evalTriggeredRef = useRef(false);
@@ -281,6 +295,12 @@ export default function RunView({
         if ("usageSummary" in data) {
           setUsageSummary((data.usageSummary as RunUsageSummary | null) ?? null);
         }
+        if ("projectRegression" in data) {
+          setProjectRegression((data.projectRegression as RegressionContext | null) ?? null);
+        }
+        if ("suiteRegression" in data) {
+          setSuiteRegression((data.suiteRegression as RegressionContext | null) ?? null);
+        }
 
         if (data.run.status === "READY_FOR_JUDGING") {
           triggerJudge();
@@ -313,6 +333,9 @@ export default function RunView({
           ruleFlags={ruleFlags}
           judgePacket={judgePacket}
           usageSummary={usageSummary}
+          projectRegression={projectRegression}
+          suiteRegression={suiteRegression}
+          runId={run.id}
         />
       ) : isFailed ? (
         <FailedState status={run.status} />
@@ -376,6 +399,9 @@ function ResultState({
   ruleFlags,
   judgePacket,
   usageSummary,
+  projectRegression,
+  suiteRegression,
+  runId,
 }: {
   evaluation: Evaluation;
   traceSummary: RunTraceSummaryRecord | null;
@@ -383,6 +409,9 @@ function ResultState({
   ruleFlags: RuleFlag[];
   judgePacket: RunJudgePacketRecord | null;
   usageSummary: RunUsageSummary | null;
+  projectRegression: RegressionContext | null;
+  suiteRegression: RegressionContext | null;
+  runId: string;
 }) {
   const breakdown = evaluation.metricBreakdown;
   const scorecard = parseFinalScorecard(evaluation.finalScorecard);
@@ -497,6 +526,11 @@ function ResultState({
       {evaluation.geminiJudgement?.panel && evaluation.geminiJudgement.panel.length > 0 && (
         <PanelScoresCard panel={evaluation.geminiJudgement.panel} finalScore={score} />
       )}
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <RegressionCard context={projectRegression} runId={runId} />
+        {suiteRegression && <RegressionCard context={suiteRegression} runId={runId} />}
+      </div>
 
       <RunUsageCard usageSummary={usageSummary} />
 
@@ -937,6 +971,234 @@ function RunUsageCard({ usageSummary }: { usageSummary: RunUsageSummary | null }
   );
 }
 
+function RegressionCard({
+  context,
+  runId,
+}: {
+  context: RegressionContext | null;
+  runId: string;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [localContext, setLocalContext] = useState<RegressionContext | null>(context);
+
+  useEffect(() => {
+    setLocalContext(context);
+  }, [context]);
+
+  if (!localContext) return null;
+
+  const { scope, scopeId, scopeName, baseline, isBaselineRun, assessment, config } =
+    localContext;
+
+  const handleSetBaseline = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const route =
+        scope === "project"
+          ? `/api/projects/${scopeId}/regression`
+          : `/api/suites/${scopeId}/regression`;
+      const saveResponse = await fetch(route, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          baselineRunId: runId,
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        const data = (await saveResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? `Failed to set ${scope} baseline.`);
+      }
+
+      const runResponse = await fetch(`/api/runs/${runId}`, { cache: "no-store" });
+      if (!runResponse.ok) {
+        throw new Error("Failed to refresh run detail.");
+      }
+
+      const data = (await runResponse.json()) as {
+        projectRegression?: RegressionContext | null;
+        suiteRegression?: RegressionContext | null;
+      };
+      setLocalContext(
+        scope === "project"
+          ? (data.projectRegression ?? null)
+          : (data.suiteRegression ?? null)
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const verdictClass =
+    assessment?.verdict === "IMPROVED"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+      : assessment?.verdict === "REGRESSED"
+      ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+      : "border-zinc-700 bg-zinc-800 text-zinc-300";
+
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">
+            {scope === "project" ? "Project" : "Suite"} regression
+          </h2>
+          <p className="text-sm text-zinc-500">
+            Baseline and ship gates for {scopeName}.
+          </p>
+        </div>
+        {assessment && (
+          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${verdictClass}`}>
+            {assessment.verdict.replace(/_/g, " ")}
+          </span>
+        )}
+        {isBaselineRun && (
+          <span className="rounded-full border border-zinc-700 bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300">
+            BASELINE
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-400">
+        {baseline ? (
+          <>
+            Baseline run <span className="font-mono text-zinc-200">{baseline.runId.slice(0, 12)}...</span>
+            {" · "}Score {baseline.totalScore != null ? Math.round(baseline.totalScore) : "—"}
+          </>
+        ) : (
+          "No baseline configured yet."
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <MetricChip
+          label="Max Dimension Drop"
+          value={config.maxDimensionDrop}
+        />
+        <MetricChip
+          label="Max Cost Increase"
+          value={`${config.maxCostIncreasePct}%`}
+        />
+        <MetricChip label="Noise Threshold" value={config.noiseThreshold} />
+      </div>
+
+      {assessment && (
+        <>
+          <p className="mt-4 text-sm text-zinc-400">{assessment.summary}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <MetricChip
+              label="Overall Delta"
+              value={formatDeltaValue(assessment.deltas.overallScore.delta, "points")}
+            />
+            <MetricChip
+              label="Errors"
+              value={formatDeltaValue(assessment.deltas.totalErrors.delta, "count")}
+            />
+            <MetricChip
+              label="Retries"
+              value={formatDeltaValue(assessment.deltas.totalRetries.delta, "count")}
+            />
+            <MetricChip
+              label="Duration"
+              value={
+                assessment.deltas.totalDurationMs.delta != null
+                  ? formatDurationMs(assessment.deltas.totalDurationMs.delta)
+                  : "—"
+              }
+            />
+            <MetricChip
+              label="Tokens"
+              value={formatDeltaValue(assessment.deltas.totalModelTokens.delta, "count")}
+            />
+            <MetricChip
+              label="Cost"
+              value={
+                assessment.deltas.totalCostUsd.delta != null
+                  ? formatUsdDelta(assessment.deltas.totalCostUsd.delta)
+                  : "—"
+              }
+            />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {assessment.gateResults.map((gate) => (
+              <div
+                key={gate.key}
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  gate.passed
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                    : "border-rose-500/20 bg-rose-500/10 text-rose-200"
+                }`}
+              >
+                <p className="font-medium">{gate.label}</p>
+                <p className="mt-1 text-xs opacity-80">{gate.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          {assessment.dimensionDeltas.length > 0 && (
+            <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-zinc-100">Per-dimension deltas</h3>
+                <span className="text-xs text-zinc-500">{assessment.dimensionDeltas.length}</span>
+              </div>
+              <div className="space-y-2">
+                {assessment.dimensionDeltas.map((dimension) => (
+                  <div
+                    key={dimension.key}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
+                  >
+                    <span className="text-zinc-300">{dimension.label}</span>
+                    <span
+                      className={
+                        dimension.delta == null
+                          ? "text-zinc-500"
+                          : dimension.delta >= 0
+                          ? "text-emerald-400"
+                          : "text-rose-400"
+                      }
+                    >
+                      {dimension.delta == null
+                        ? "—"
+                        : `${dimension.delta >= 0 ? "+" : ""}${Math.round(dimension.delta * 100) / 100}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {error && (
+        <p className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+
+      {!isBaselineRun && (
+        <button
+          type="button"
+          onClick={handleSetBaseline}
+          disabled={saving}
+          className="mt-4 rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-60"
+        >
+          {saving
+            ? "Saving..."
+            : `Set as ${scope === "project" ? "project" : "suite"} baseline`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function ProsConsList({ value }: { value?: string }) {
   if (!value || !value.trim()) return <p className="text-sm text-zinc-600">—</p>;
   const items = value
@@ -1063,6 +1325,13 @@ function formatInteger(value: number) {
   return value.toLocaleString();
 }
 
+function formatDeltaValue(value: number | null, unit: "points" | "count") {
+  if (value == null) return "—";
+  const rounded = Math.round(value * 100) / 100;
+  const prefix = rounded > 0 ? "+" : "";
+  return unit === "points" ? `${prefix}${rounded} pts` : `${prefix}${rounded}`;
+}
+
 function formatUsd(value: number) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -1070,6 +1339,10 @@ function formatUsd(value: number) {
     minimumFractionDigits: value < 0.01 ? 4 : 2,
     maximumFractionDigits: value < 0.01 ? 6 : 2,
   }).format(value);
+}
+
+function formatUsdDelta(value: number) {
+  return `${value > 0 ? "+" : ""}${formatUsd(value)}`;
 }
 
 function getSeverityClass(severity: string) {

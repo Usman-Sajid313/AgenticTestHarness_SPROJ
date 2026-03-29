@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { generateRunPDF } from "@/lib/pdf-generator";
-
-const BASELINE_RUN_KEY = (projectId: string) => `baselineRunId_${projectId}`;
-const BASELINE_SCORE_KEY = (projectId: string) => `baselineScore_${projectId}`;
+import type { RegressionContext } from "@/lib/regression";
 
 type Run = {
   id: string;
@@ -19,6 +17,7 @@ type Run = {
     status: string;
     totalScore: number | null;
   }>;
+  projectRegression?: RegressionContext | null;
 };
 
 type ProjectRunsTableProps = {
@@ -27,6 +26,7 @@ type ProjectRunsTableProps = {
   currentPage: number;
   pageSize: number;
   projectId: string;
+  baselineRunId?: string | null;
 };
 
 export default function ProjectRunsTable({
@@ -34,14 +34,15 @@ export default function ProjectRunsTable({
   totalCount,
   currentPage,
   pageSize,
-  projectId
+  projectId,
+  baselineRunId,
 }: ProjectRunsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const totalPages = Math.ceil(totalCount / pageSize);
   const [downloadingRunId, setDownloadingRunId] = useState<string | null>(null);
-  const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
-  const [baselineScore, setBaselineScore] = useState<number | null>(null);
+  const [savingBaselineRunId, setSavingBaselineRunId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -51,18 +52,6 @@ export default function ProjectRunsTable({
     minute: "2-digit",
     hour12: true,
   });
-
-  useEffect(() => {
-    const runId = localStorage.getItem(BASELINE_RUN_KEY(projectId));
-    const scoreRaw = localStorage.getItem(BASELINE_SCORE_KEY(projectId));
-    setBaselineRunId(runId);
-    if (scoreRaw != null) {
-      const n = Number(scoreRaw);
-      setBaselineScore(Number.isNaN(n) ? null : n);
-    } else {
-      setBaselineScore(null);
-    }
-  }, [projectId]);
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -111,12 +100,32 @@ export default function ProjectRunsTable({
     }
   };
 
-  const handleSetBaseline = (runId: string, score: number) => {
-    localStorage.setItem(BASELINE_RUN_KEY(projectId), runId);
-    localStorage.setItem(BASELINE_SCORE_KEY(projectId), String(score));
-    setBaselineRunId(runId);
-    setBaselineScore(score);
-    router.refresh();
+  const handleSetBaseline = async (runId: string) => {
+    setSavingBaselineRunId(runId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/regression`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          baselineRunId: runId,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Failed to persist project baseline.");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSavingBaselineRunId(null);
+    }
   };
 
   if (!runs || runs.length === 0) {
@@ -142,6 +151,11 @@ export default function ProjectRunsTable({
 
   return (
     <div className="mt-10 space-y-4">
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         <table className="w-full text-left text-sm">
           <thead>
@@ -149,7 +163,10 @@ export default function ProjectRunsTable({
               <th className="px-5 py-3.5">Run ID</th>
               <th className="px-5 py-3.5">Status</th>
               <th className="px-5 py-3.5 text-right w-[5.5rem]">Score</th>
-              {baselineScore !== null && (
+              {baselineRunId && (
+                <th className="px-5 py-3.5 whitespace-nowrap">Verdict</th>
+              )}
+              {baselineRunId && (
                 <th className="px-5 py-3.5 text-right w-[4.5rem] whitespace-nowrap">Δ baseline</th>
               )}
               <th className="px-5 py-3.5 whitespace-nowrap">Created</th>
@@ -164,6 +181,17 @@ export default function ProjectRunsTable({
             const score = evaluation?.totalScore !== null && evaluation?.totalScore !== undefined
               ? Math.round(evaluation.totalScore)
               : null;
+            const regression = run.projectRegression;
+            const overallDelta = regression?.assessment?.deltas.overallScore.delta ?? null;
+            const verdict = regression?.isBaselineRun
+              ? "BASELINE"
+              : regression?.assessment?.verdict ?? null;
+            const verdictClass =
+              verdict === "IMPROVED"
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                : verdict === "REGRESSED"
+                ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                : "border-zinc-700 bg-zinc-800 text-zinc-300";
 
             return (
               <tr
@@ -188,16 +216,27 @@ export default function ProjectRunsTable({
                     <span className="text-zinc-600">—</span>
                   )}
                 </td>
-                {baselineScore !== null && (
+                {baselineRunId && (
+                  <td className="px-5 py-3.5 align-baseline whitespace-nowrap">
+                    {verdict ? (
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${verdictClass}`}>
+                        {verdict.replace(/_/g, " ")}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-600">—</span>
+                    )}
+                  </td>
+                )}
+                {baselineRunId && (
                   <td className="px-5 py-3.5 text-right align-baseline tabular-nums w-[4.5rem]">
-                    {score !== null ? (
+                    {overallDelta !== null ? (
                       <span
                         className={
-                          score - baselineScore >= 0 ? "text-emerald-400" : "text-rose-400"
+                          overallDelta >= 0 ? "text-emerald-400" : "text-rose-400"
                         }
                       >
-                        {score - baselineScore >= 0 ? "+" : ""}
-                        {score - baselineScore}
+                        {overallDelta >= 0 ? "+" : ""}
+                        {Math.round(overallDelta)}
                       </span>
                     ) : (
                       <span className="text-zinc-600">—</span>
@@ -225,12 +264,13 @@ export default function ProjectRunsTable({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleSetBaseline(run.id, score);
+                              void handleSetBaseline(run.id);
                             }}
-                            className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs rounded-lg px-2.5 py-1 transition whitespace-nowrap"
+                            disabled={savingBaselineRunId === run.id}
+                            className="bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs rounded-lg px-2.5 py-1 transition whitespace-nowrap disabled:opacity-60"
                             title="Set as baseline for delta comparison"
                           >
-                            Set baseline
+                            {savingBaselineRunId === run.id ? "Saving..." : "Set baseline"}
                           </button>
                         ))}
                     </div>

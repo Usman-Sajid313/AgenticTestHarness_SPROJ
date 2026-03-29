@@ -17,6 +17,21 @@ export type RunUsageSummary = {
   note: string;
 };
 
+export type RunUsageSummarySource = {
+  judgePacket?: {
+    packetSizeBytes: number;
+  } | null;
+  evaluation?: {
+    geminiJudgement?: unknown;
+  } | null;
+  workspace?: {
+    modelConfig?: {
+      judgePanelModels?: string[];
+      judgeVerifierModel?: string | null;
+    } | null;
+  } | null;
+};
+
 export async function getRunUsageSummary(runId: string): Promise<RunUsageSummary> {
   const config = getRunBudgetConfig();
   const costPerMillionTokens = config.costPerMillionTokens ?? 0.1;
@@ -53,6 +68,22 @@ export async function getRunUsageSummary(runId: string): Promise<RunUsageSummary
     },
   });
 
+  return buildRunUsageSummary(
+    run
+      ? {
+          judgePacket: run.judgePacket,
+          evaluation: run.evaluations[0] ?? null,
+          workspace: run.project.workspace,
+        }
+      : null,
+    costPerMillionTokens
+  );
+}
+
+export function buildRunUsageSummary(
+  run: RunUsageSummarySource | null | undefined,
+  costPerMillionTokens = getRunBudgetConfig().costPerMillionTokens ?? 0.1
+): RunUsageSummary {
   if (!run) {
     return {
       parseModelTokens: 0,
@@ -87,10 +118,10 @@ export async function getRunUsageSummary(runId: string): Promise<RunUsageSummary
   }
 
   const configuredPanelCount =
-    run.project.workspace.modelConfig?.judgePanelModels?.length ?? DEFAULT_PANEL_MODEL_COUNT;
+    run.workspace?.modelConfig?.judgePanelModels?.length ?? DEFAULT_PANEL_MODEL_COUNT;
   const configuredVerifierCount =
-    run.project.workspace.modelConfig?.judgeVerifierModel ? 1 : 1;
-  const persistedJudgement = parseStoredJson(run.evaluations[0]?.geminiJudgement);
+    run.workspace?.modelConfig?.judgeVerifierModel ? 1 : 1;
+  const persistedJudgement = parseStoredJson(run.evaluation?.geminiJudgement);
   const persistedPanelCount = Array.isArray(persistedJudgement?.panel)
     ? persistedJudgement.panel.length
     : null;

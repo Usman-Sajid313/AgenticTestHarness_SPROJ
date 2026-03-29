@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import RunView, { type Evaluation as RunViewEvaluation } from "@/app/components/runs/RunView";
-import type { MetricBreakdown, Evaluation } from "@/types/evaluation";
-import { getRunUsageSummary } from "@/lib/runUsage";
+import type { Evaluation } from "@/types/evaluation";
+import { buildRunUsageSummary } from "@/lib/runUsage";
+import { resolveMetricBreakdown } from "@/lib/evaluationSummary";
+import { buildRegressionContext } from "@/lib/regression";
 
 export default async function RunPage(context: {
   params: Promise<{ id: string }>;
@@ -11,8 +13,69 @@ export default async function RunPage(context: {
   const run = await prisma.agentRun.findUnique({
     where: { id },
     include: {
-      evaluations: true,
-      project: true,
+      evaluations: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+      project: {
+        select: {
+          id: true,
+          name: true,
+          workspaceId: true,
+          baselineRunId: true,
+          regressionConfig: true,
+          workspace: {
+            select: {
+              modelConfig: {
+                select: {
+                  judgePanelModels: true,
+                  judgeVerifierModel: true,
+                },
+              },
+            },
+          },
+          baselineRun: {
+            select: {
+              id: true,
+              createdAt: true,
+              evaluations: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+              metrics: true,
+              judgePacket: {
+                select: {
+                  packetSizeBytes: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      testSuite: {
+        select: {
+          id: true,
+          name: true,
+          baselineRunId: true,
+          regressionConfig: true,
+          baselineRun: {
+            select: {
+              id: true,
+              createdAt: true,
+              evaluations: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+              metrics: true,
+              judgePacket: {
+                select: {
+                  packetSizeBytes: true,
+                },
+              },
+            },
+          },
+        },
+      },
       traceSummary: true,
       metrics: true,
       ruleFlags: true,
@@ -34,64 +97,6 @@ export default async function RunPage(context: {
     const ev = run.evaluations[0];
 
     if (ev.status === "COMPLETED") {
-      let metricBreakdown = ev.metricBreakdown as MetricBreakdown | null;
-
-      if (!metricBreakdown && ev.finalScorecard) {
-        try {
-          const scorecard = typeof ev.finalScorecard === 'string'
-            ? JSON.parse(ev.finalScorecard)
-            : ev.finalScorecard as {
-              overallScore: number;
-              confidence: number;
-              dimensions: Record<string, {
-                score: number;
-                reasoning: string;
-                evidenceEventIds: string[];
-              }>;
-              strengths: string[];
-              weaknesses: string[];
-              missingData?: string[];
-            };
-
-          const dimensions: Record<string, { score: number; summary?: string; strengths?: string; weaknesses?: string }> = {};
-
-          for (const [key, dim] of Object.entries(scorecard.dimensions || {})) {
-            const dimTyped = dim as {
-              score: number;
-              reasoning: string;
-              strengths?: string[];
-              weaknesses?: string[];
-            };
-            dimensions[key] = {
-              score: dimTyped.score,
-              summary: dimTyped.reasoning,
-              strengths: (dimTyped.strengths && dimTyped.strengths.length > 0)
-                ? dimTyped.strengths.join("; ")
-                : (scorecard.strengths?.filter((s: string) =>
-                    s.toLowerCase().includes(key.toLowerCase()) ||
-                    dimTyped.reasoning.toLowerCase().includes(s.toLowerCase())
-                  ).join("; ") || undefined),
-              weaknesses: (dimTyped.weaknesses && dimTyped.weaknesses.length > 0)
-                ? dimTyped.weaknesses.join("; ")
-                : (scorecard.weaknesses?.filter((w: string) =>
-                    w.toLowerCase().includes(key.toLowerCase()) ||
-                    dimTyped.reasoning.toLowerCase().includes(w.toLowerCase())
-                  ).join("; ") || undefined),
-            };
-          }
-
-          metricBreakdown = {
-            overallComment: ev.summary ||
-              `Score: ${scorecard.overallScore}/100. ` +
-              (scorecard.strengths?.length ? `Strengths: ${scorecard.strengths.join("; ")}. ` : "") +
-              (scorecard.weaknesses?.length ? `Areas for improvement: ${scorecard.weaknesses.join("; ")}.` : ""),
-            dimensions,
-          };
-        } catch (error) {
-          console.error("Failed to convert finalScorecard to metricBreakdown:", error);
-        }
-      }
-
       evaluation = {
         id: ev.id,
         status: ev.status,
@@ -99,7 +104,7 @@ export default async function RunPage(context: {
         summary: ev.summary,
         createdAt: ev.createdAt,
         updatedAt: ev.updatedAt,
-        metricBreakdown,
+        metricBreakdown: resolveMetricBreakdown(ev),
         geminiJudgement: ev.geminiJudgement,
         groqJudgement: ev.groqJudgement,
         finalScorecard: ev.finalScorecard,
@@ -108,7 +113,74 @@ export default async function RunPage(context: {
     }
   }
 
-  const usageSummary = await getRunUsageSummary(id);
+  const evaluationRecord = run.evaluations[0] ?? null;
+  const usageSummary = buildRunUsageSummary({
+    judgePacket: run.judgePacket,
+    evaluation: evaluationRecord,
+    workspace: run.project.workspace,
+  });
+  const projectBaseline = run.project.baselineRun;
+  const projectBaselineUsageSummary = projectBaseline
+    ? buildRunUsageSummary({
+        judgePacket: projectBaseline.judgePacket,
+        evaluation: projectBaseline.evaluations[0] ?? null,
+        workspace: run.project.workspace,
+      })
+    : null;
+  const projectRegression = buildRegressionContext({
+    scope: "project",
+    scopeId: run.project.id,
+    scopeName: run.project.name,
+    config: run.project.regressionConfig,
+    baselineRun: projectBaseline
+      ? {
+          id: projectBaseline.id,
+          createdAt: projectBaseline.createdAt,
+          evaluation: projectBaseline.evaluations[0] ?? null,
+          metrics: projectBaseline.metrics,
+          usageSummary: projectBaselineUsageSummary,
+        }
+      : null,
+    candidateRun: {
+      id: run.id,
+      createdAt: run.createdAt,
+      evaluation: evaluationRecord,
+      metrics: run.metrics,
+      usageSummary,
+    },
+  });
+  const suiteBaseline = run.testSuite?.baselineRun ?? null;
+  const suiteBaselineUsageSummary = suiteBaseline
+    ? buildRunUsageSummary({
+        judgePacket: suiteBaseline.judgePacket,
+        evaluation: suiteBaseline.evaluations[0] ?? null,
+        workspace: run.project.workspace,
+      })
+    : null;
+  const suiteRegression = run.testSuite
+    ? buildRegressionContext({
+        scope: "suite",
+        scopeId: run.testSuite.id,
+        scopeName: run.testSuite.name,
+        config: run.testSuite.regressionConfig,
+        baselineRun: suiteBaseline
+          ? {
+              id: suiteBaseline.id,
+              createdAt: suiteBaseline.createdAt,
+              evaluation: suiteBaseline.evaluations[0] ?? null,
+              metrics: suiteBaseline.metrics,
+              usageSummary: suiteBaselineUsageSummary,
+            }
+          : null,
+        candidateRun: {
+          id: run.id,
+          createdAt: run.createdAt,
+          evaluation: evaluationRecord,
+          metrics: run.metrics,
+          usageSummary,
+        },
+      })
+    : null;
 
   return (
     <main className="min-h-screen w-full bg-zinc-950">
@@ -117,6 +189,8 @@ export default async function RunPage(context: {
           initialRun={{
             ...run,
             usageSummary,
+            projectRegression,
+            suiteRegression,
           }}
           initialEvaluation={evaluation as RunViewEvaluation | null}
         />

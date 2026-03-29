@@ -54,6 +54,23 @@ export async function apiGet(path: string, options: { cookie?: string | null } =
   return fetch(url, { method: 'GET', headers });
 }
 
+export async function apiPatch(
+  path: string,
+  body: Record<string, unknown> | null,
+  options: { cookie?: string | null } = {}
+): Promise<Response> {
+  const url = `${baseUrl()}${path}`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (options.cookie) headers['Cookie'] = options.cookie;
+  return fetch(url, {
+    method: 'PATCH',
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 /** Signup and return auth cookie on success. */
 export async function signupAndGetCookie(
   name: string,

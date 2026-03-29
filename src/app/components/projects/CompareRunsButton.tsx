@@ -17,12 +17,14 @@ type CompareRunsButtonProps = {
   projectId: string;
   projectName?: string;
   runs: RunForCompare[];
+  baselineRunId?: string | null;
 };
 
 export default function CompareRunsButton({
   projectId,
   projectName,
   runs,
+  baselineRunId,
 }: CompareRunsButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -40,6 +42,7 @@ export default function CompareRunsButton({
         projectId={projectId}
         projectName={projectName}
         runs={runs}
+        baselineRunId={baselineRunId}
       />
     </>
   );

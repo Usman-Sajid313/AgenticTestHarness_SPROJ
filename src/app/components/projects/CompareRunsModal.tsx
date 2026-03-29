@@ -20,6 +20,7 @@ type CompareRunsModalProps = {
   projectId: string;
   projectName?: string;
   runs: RunForCompare[];
+  baselineRunId?: string | null;
 };
 
 const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
@@ -37,6 +38,7 @@ export default function CompareRunsModal({
   projectId,
   projectName,
   runs,
+  baselineRunId,
 }: CompareRunsModalProps) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -147,7 +149,14 @@ export default function CompareRunsModal({
                             />
                           </td>
                           <td className="px-4 py-3 font-mono text-zinc-300">
-                            {run.id.slice(0, 12)}...
+                            <div className="flex items-center gap-2">
+                              <span>{run.id.slice(0, 12)}...</span>
+                              {baselineRunId === run.id && (
+                                <span className="rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                                  Baseline
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
                             {run.completedAt

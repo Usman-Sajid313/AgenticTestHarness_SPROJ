@@ -3,6 +3,9 @@ import ProjectRunsTable from "@/app/components/projects/ProjectRunsTable";
 import StartRunButton from "@/app/components/projects/StartRunButton";
 import CompareRunsButton from "@/app/components/projects/CompareRunsButton";
 import ScoreTrendChart from "@/app/components/projects/ScoreTrendChart";
+import ProjectRegressionPanel from "@/app/components/projects/ProjectRegressionPanel";
+import { buildRunUsageSummary } from "@/lib/runUsage";
+import { buildRegressionContext, resolveRegressionConfig } from "@/lib/regression";
 
 const PAGE_SIZE = 10;
 
@@ -17,6 +20,39 @@ export default async function ProjectPage(context: {
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      baselineRunId: true,
+      regressionConfig: true,
+      workspace: {
+        select: {
+          modelConfig: {
+            select: {
+              judgePanelModels: true,
+              judgeVerifierModel: true,
+            },
+          },
+        },
+      },
+      baselineRun: {
+        select: {
+          id: true,
+          createdAt: true,
+          evaluations: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+          metrics: true,
+          judgePacket: {
+            select: {
+              packetSizeBytes: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!project) {
@@ -35,8 +71,14 @@ export default async function ProjectPage(context: {
     where: { projectId },
     include: {
       evaluations: {
-        where: { status: "COMPLETED" },
+        orderBy: { createdAt: "desc" },
         take: 1,
+      },
+      metrics: true,
+      judgePacket: {
+        select: {
+          packetSizeBytes: true,
+        },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -48,11 +90,55 @@ export default async function ProjectPage(context: {
     where: { projectId },
     include: {
       evaluations: {
-        where: { status: "COMPLETED" },
+        orderBy: { createdAt: "desc" },
         take: 1,
       },
     },
     orderBy: { createdAt: "desc" },
+  });
+
+  const projectRegressionConfig = resolveRegressionConfig(project.regressionConfig);
+  const baselineRun = project.baselineRun;
+  const baselineUsageSummary = baselineRun
+    ? buildRunUsageSummary({
+        judgePacket: baselineRun.judgePacket,
+        evaluation: baselineRun.evaluations[0] ?? null,
+        workspace: project.workspace,
+      })
+    : null;
+
+  const runsWithRegression = runs.map((run) => {
+    const usageSummary = buildRunUsageSummary({
+      judgePacket: run.judgePacket,
+      evaluation: run.evaluations[0] ?? null,
+      workspace: project.workspace,
+    });
+
+    return {
+      ...run,
+      projectRegression: buildRegressionContext({
+        scope: "project",
+        scopeId: project.id,
+        scopeName: project.name,
+        config: projectRegressionConfig,
+        baselineRun: baselineRun
+          ? {
+              id: baselineRun.id,
+              createdAt: baselineRun.createdAt,
+              evaluation: baselineRun.evaluations[0] ?? null,
+              metrics: baselineRun.metrics,
+              usageSummary: baselineUsageSummary,
+            }
+          : null,
+        candidateRun: {
+          id: run.id,
+          createdAt: run.createdAt,
+          evaluation: run.evaluations[0] ?? null,
+          metrics: run.metrics,
+          usageSummary,
+        },
+      }),
+    };
   });
 
   return (
@@ -71,19 +157,39 @@ export default async function ProjectPage(context: {
               projectId={projectId}
               projectName={project.name}
               runs={allRunsForChart}
+              baselineRunId={project.baselineRunId}
             />
             <StartRunButton projectId={projectId} />
           </div>
         </div>
 
-        <ScoreTrendChart runs={allRunsForChart} projectId={projectId} />
+        <ProjectRegressionPanel
+          projectId={projectId}
+          baseline={
+            baselineRun
+              ? {
+                  runId: baselineRun.id,
+                  createdAt: baselineRun.createdAt.toISOString(),
+                  totalScore: baselineRun.evaluations[0]?.totalScore ?? null,
+                }
+              : null
+          }
+          config={projectRegressionConfig}
+        />
+
+        <ScoreTrendChart
+          runs={allRunsForChart}
+          baselineRunId={project.baselineRunId}
+          baselineScore={baselineRun?.evaluations[0]?.totalScore ?? null}
+        />
 
         <ProjectRunsTable
-          runs={runs}
+          runs={runsWithRegression}
           totalCount={totalCount}
           currentPage={page}
           pageSize={PAGE_SIZE}
           projectId={projectId}
+          baselineRunId={project.baselineRunId}
         />
       </div>
     </main>

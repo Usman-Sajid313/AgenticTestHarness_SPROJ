@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getScopedUser } from "@/lib/auth";
+import { resolveMetricBreakdown } from "@/lib/evaluationSummary";
+import { buildRunUsageSummary } from "@/lib/runUsage";
 
 export async function GET(req: Request) {
   const user = await getScopedUser("read");
@@ -46,6 +48,16 @@ export async function GET(req: Request) {
             id: true,
             name: true,
             workspaceId: true,
+            workspace: {
+              select: {
+                modelConfig: {
+                  select: {
+                    judgePanelModels: true,
+                    judgeVerifierModel: true,
+                  },
+                },
+              },
+            },
           },
         },
         evaluations: {
@@ -53,6 +65,11 @@ export async function GET(req: Request) {
           take: 1,
         },
         metrics: true,
+        judgePacket: {
+          select: {
+            packetSizeBytes: true,
+          },
+        },
         traceSummary: true,
         ruleFlags: {
           orderBy: { severity: "desc" },
@@ -99,24 +116,12 @@ export async function GET(req: Request) {
     // Extract and structure comparison data (derive metricBreakdown from finalScorecard when missing)
     const comparison = runs.map((run) => {
       const evaluation = run.evaluations[0] || null;
-      let metricBreakdown = evaluation?.metricBreakdown as
-        | {
-            overallComment?: string;
-            dimensions?: Record<
-              string,
-              {
-                score: number;
-                summary?: string;
-                strengths?: string;
-                weaknesses?: string;
-              }
-            >;
-          }
-        | null;
-
-      if (evaluation && (!metricBreakdown?.dimensions || Object.keys(metricBreakdown.dimensions || {}).length === 0) && evaluation.finalScorecard) {
-        metricBreakdown = deriveMetricBreakdownFromScorecard(evaluation);
-      }
+      const metricBreakdown = resolveMetricBreakdown(evaluation);
+      const usageSummary = buildRunUsageSummary({
+        judgePacket: run.judgePacket,
+        evaluation,
+        workspace: run.project.workspace,
+      });
 
       return {
         id: run.id,
@@ -144,6 +149,7 @@ export async function GET(req: Request) {
               totalDurationMs: run.metrics.totalDurationMs,
             }
           : null,
+        usageSummary,
         ruleFlags: run.ruleFlags.map((flag) => ({
           flagType: flag.flagType,
           severity: flag.severity,
@@ -171,49 +177,6 @@ export async function GET(req: Request) {
       },
       { status: 500 }
     );
-  }
-}
-
-function deriveMetricBreakdownFromScorecard(evaluation: {
-  summary: string | null;
-  finalScorecard: unknown;
-}): {
-  overallComment: string;
-  dimensions: Record<string, { score: number; summary?: string; strengths?: string; weaknesses?: string }>;
-} {
-  try {
-    const scorecard = typeof evaluation.finalScorecard === "string"
-      ? JSON.parse(evaluation.finalScorecard)
-      : evaluation.finalScorecard as {
-          overallScore: number;
-          dimensions?: Record<string, {
-            score: number;
-            reasoning: string;
-            strengths?: string[];
-            weaknesses?: string[];
-          }>;
-          strengths?: string[];
-          weaknesses?: string[];
-        };
-    const dimensions: Record<string, { score: number; summary?: string; strengths?: string; weaknesses?: string }> = {};
-    for (const [key, dim] of Object.entries(scorecard.dimensions || {})) {
-      const d = dim as { score: number; reasoning: string; strengths?: string[]; weaknesses?: string[] };
-      dimensions[key] = {
-        score: d.score,
-        summary: d.reasoning,
-        strengths: d.strengths?.length ? d.strengths.join("; ") : undefined,
-        weaknesses: d.weaknesses?.length ? d.weaknesses.join("; ") : undefined,
-      };
-    }
-    return {
-      overallComment: evaluation.summary ||
-        `Score: ${scorecard.overallScore}/100. ` +
-        (scorecard.strengths?.length ? `Strengths: ${scorecard.strengths.join("; ")}. ` : "") +
-        (scorecard.weaknesses?.length ? `Areas for improvement: ${scorecard.weaknesses.join("; ")}.` : ""),
-      dimensions,
-    };
-  } catch {
-    return { overallComment: "", dimensions: {} };
   }
 }
 
@@ -285,6 +248,10 @@ function computeMetricComparison(
       totalRetries: number;
       totalDurationMs: number | null;
     } | null;
+    usageSummary: {
+      totalModelTokens: number | null;
+      totalCostUsd: number | null;
+    } | null;
   }>
 ) {
   const metricKeys = [
@@ -293,6 +260,8 @@ function computeMetricComparison(
     "totalErrors",
     "totalRetries",
     "totalDurationMs",
+    "totalModelTokens",
+    "totalCostUsd",
   ] as const;
 
   const comparison: Record<
@@ -302,8 +271,14 @@ function computeMetricComparison(
 
   metricKeys.forEach((metricKey) => {
     comparison[metricKey] = runs.map((run, index) => {
-      const value = run.metrics?.[metricKey] ?? null;
-      const baselineValue = runs[0].metrics?.[metricKey] ?? null;
+      const value =
+        metricKey === "totalModelTokens" || metricKey === "totalCostUsd"
+          ? run.usageSummary?.[metricKey] ?? null
+          : run.metrics?.[metricKey] ?? null;
+      const baselineValue =
+        metricKey === "totalModelTokens" || metricKey === "totalCostUsd"
+          ? runs[0].usageSummary?.[metricKey] ?? null
+          : runs[0].metrics?.[metricKey] ?? null;
       const delta =
         value !== null && baselineValue !== null && index > 0
           ? value - baselineValue

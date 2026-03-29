@@ -186,6 +186,8 @@ model Project {
   name        String
   description String?
   createdById String?
+  baselineRunId String?
+  regressionConfig Json?
   isArchived  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -193,6 +195,7 @@ model Project {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   createdBy   User?          @relation("UserProjectsOwned", fields: [createdById], references: [id], onDelete: SetNull)
+  baselineRun AgentRun?      @relation("ProjectBaselineRun", fields: [baselineRunId], references: [id], onDelete: SetNull)
   runs        AgentRun[]
   evaluations RunEvaluation[]
   logfiles    RunLogfile[]
@@ -201,6 +204,7 @@ model Project {
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@index([createdById])
+  @@index([baselineRunId])
   @@index([isArchived])
 }
 
@@ -280,6 +284,8 @@ model TestSuite {
   workspaceId String
   name        String
   corePrompt  String   @db.Text
+  baselineRunId String?
+  regressionConfig Json?
 
   toolIds     Json     @default("[]")
   config      Json?
@@ -291,11 +297,13 @@ model TestSuite {
 
   workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rubric      EvaluationRubric?  @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  baselineRun AgentRun?          @relation("SuiteBaselineRun", fields: [baselineRunId], references: [id], onDelete: SetNull)
   runs        AgentRun[]
   evaluations RunEvaluation[]
 
   @@index([workspaceId])
   @@index([rubricId])
+  @@index([baselineRunId])
 }
 
 model EvaluationRubric {
@@ -336,6 +344,8 @@ model AgentRun {
   testSuite   TestSuite?        @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
   rubric      EvaluationRubric? @relation("RunRubrics", fields: [rubricId], references: [id], onDelete: SetNull)
   triggeredBy User?             @relation("UserRunsTriggered", fields: [triggeredById], references: [id], onDelete: SetNull)
+  baselineForProjects Project[] @relation("ProjectBaselineRun")
+  baselineForSuites   TestSuite[] @relation("SuiteBaselineRun")
 
   logfiles         RunLogfile[]
   ingestions       RunIngestion[]

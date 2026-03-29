@@ -10,6 +10,7 @@ import {
   Area,
   Line,
   ComposedChart,
+  ReferenceLine,
 } from "recharts";
 
 type ScorecardDimensions = Record<
@@ -31,7 +32,8 @@ type RunData = {
 
 type ScoreTrendChartProps = {
   runs: RunData[];
-  projectId: string;
+  baselineRunId?: string | null;
+  baselineScore?: number | null;
 };
 
 const DIMENSION_COLORS = [
@@ -53,13 +55,14 @@ function humanizeDimensionKey(key: string) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const BASELINE_KEY = (projectId: string) => `baselineRunId_${projectId}`;
-const BASELINE_SCORE_KEY = (projectId: string) => `baselineScore_${projectId}`;
-
-export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProps) {
+export default function ScoreTrendChart({
+  runs,
+  baselineRunId,
+  baselineScore,
+}: ScoreTrendChartProps) {
   const [showDimensions, setShowDimensions] = useState(true);
 
-  const { chartData, dimensionKeys, baselineScore } = useMemo(() => {
+  const { chartData, dimensionKeys } = useMemo(() => {
     const filtered = runs.filter((run) => {
       const evaluation = run.evaluations?.[0];
       return (
@@ -104,18 +107,8 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
 
     const chartData = sorted.map((point, i) => ({ ...point, index: i + 1 }));
 
-    let baselineScore: number | null = null;
-    if (typeof window !== "undefined") {
-      const storedId = localStorage.getItem(BASELINE_KEY(projectId));
-      const storedScore = localStorage.getItem(BASELINE_SCORE_KEY(projectId));
-      if (storedId && storedScore) {
-        const parsed = Number(storedScore);
-        if (!Number.isNaN(parsed)) baselineScore = parsed;
-      }
-    }
-
-    return { chartData, dimensionKeys, baselineScore };
-  }, [runs, projectId]);
+    return { chartData, dimensionKeys };
+  }, [runs]);
 
   if (chartData.length === 0) {
     return (
@@ -232,6 +225,13 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
               width={40}
             />
             <Tooltip content={<CustomTooltip />} />
+            {baselineScore != null && (
+              <ReferenceLine
+                y={Math.round(baselineScore)}
+                stroke="rgba(244,244,245,0.35)"
+                strokeDasharray="6 4"
+              />
+            )}
             <Area
               type="monotone"
               dataKey="score"
@@ -281,7 +281,7 @@ export default function ScoreTrendChart({ runs, projectId }: ScoreTrendChartProp
         </div>
         <div className="shrink-0 text-zinc-600">
           {chartData.length} {chartData.length === 1 ? "evaluation" : "evaluations"}
-          {baselineScore != null && " · Baseline set"}
+          {baselineRunId && baselineScore != null && " · Baseline set"}
         </div>
       </div>
     </div>

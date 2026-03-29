@@ -40,6 +40,10 @@ type ComparisonData = {
       totalRetries: number;
       totalDurationMs: number | null;
     } | null;
+    usageSummary?: {
+      totalModelTokens: number | null;
+      totalCostUsd: number | null;
+    } | null;
     ruleFlags: Array<{
       flagType: string;
       severity: string;

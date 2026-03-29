@@ -37,6 +37,10 @@ type ComparisonViewProps = {
         totalRetries: number;
         totalDurationMs: number | null;
       } | null;
+      usageSummary?: {
+        totalModelTokens: number | null;
+        totalCostUsd: number | null;
+      } | null;
       ruleFlags: Array<{
         flagType: string;
         severity: string;
@@ -76,6 +80,16 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
+  const formatUsd = (value: number | null) => {
+    if (value === null) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: value < 0.01 ? 4 : 2,
+      maximumFractionDigits: value < 0.01 ? 6 : 2,
+    }).format(value);
+  };
+
   // Build 2-run comparison insights
   const twoRunInsights =
     runs.length === 2 &&
@@ -102,6 +116,10 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
           const durationB = runs[1].metrics?.totalDurationMs ?? null;
           const errorsA = runs[0].metrics?.totalErrors ?? null;
           const errorsB = runs[1].metrics?.totalErrors ?? null;
+          const tokensA = runs[0].usageSummary?.totalModelTokens ?? null;
+          const tokensB = runs[1].usageSummary?.totalModelTokens ?? null;
+          const costA = runs[0].usageSummary?.totalCostUsd ?? null;
+          const costB = runs[1].usageSummary?.totalCostUsd ?? null;
           return {
             overallDelta,
             scoreA,
@@ -112,6 +130,8 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
             toolsDelta: toolsB != null && toolsA != null ? toolsB - toolsA : null,
             durationDelta: durationB != null && durationA != null ? durationB - durationA : null,
             errorsDelta: errorsB != null && errorsA != null ? errorsB - errorsA : null,
+            tokensDelta: tokensB != null && tokensA != null ? tokensB - tokensA : null,
+            costDelta: costB != null && costA != null ? costB - costA : null,
           };
         })()
       : null;
@@ -167,6 +187,12 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
               )}
               {twoRunInsights.errorsDelta != null && (
                 <span>Errors: {twoRunInsights.errorsDelta >= 0 ? "+" : ""}{twoRunInsights.errorsDelta}</span>
+              )}
+              {twoRunInsights.tokensDelta != null && (
+                <span>Tokens: {twoRunInsights.tokensDelta >= 0 ? "+" : ""}{Math.round(twoRunInsights.tokensDelta)}</span>
+              )}
+              {twoRunInsights.costDelta != null && (
+                <span>Cost: {twoRunInsights.costDelta > 0 ? "+" : ""}{formatUsd(twoRunInsights.costDelta)}</span>
               )}
             </div>
           </div>
@@ -345,6 +371,10 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                         <span className="text-zinc-300">
                           {metricKey === "totalDurationMs"
                             ? formatDuration(item.value)
+                            : metricKey === "totalCostUsd"
+                            ? formatUsd(item.value)
+                            : metricKey === "totalModelTokens" && item.value != null
+                            ? Math.round(item.value).toLocaleString()
                             : item.value ?? "—"}
                         </span>
                         {item.delta !== null && index > 0 && (
@@ -352,12 +382,18 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                             className={`text-xs font-semibold ${
                               item.delta > 0
                                 ? metricKey === "totalErrors" ||
-                                  metricKey === "totalRetries"
+                                  metricKey === "totalRetries" ||
+                                  metricKey === "totalDurationMs" ||
+                                  metricKey === "totalModelTokens" ||
+                                  metricKey === "totalCostUsd"
                                   ? "text-rose-400"
                                   : "text-emerald-400"
                                 : item.delta < 0
                                 ? metricKey === "totalErrors" ||
-                                  metricKey === "totalRetries"
+                                  metricKey === "totalRetries" ||
+                                  metricKey === "totalDurationMs" ||
+                                  metricKey === "totalModelTokens" ||
+                                  metricKey === "totalCostUsd"
                                   ? "text-emerald-400"
                                   : "text-rose-400"
                                 : "text-zinc-500"
@@ -366,6 +402,8 @@ export default function ComparisonView({ data, onRemoveRun }: ComparisonViewProp
                             {item.delta > 0 ? "+" : ""}
                             {metricKey === "totalDurationMs"
                               ? formatDuration(item.delta)
+                              : metricKey === "totalCostUsd"
+                              ? formatUsd(item.delta)
                               : item.delta}
                           </span>
                         )}
