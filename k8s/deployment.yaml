@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nextjs-app
+  name: nextjs-deployment
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: nextjs-app
@@ -13,7 +13,54 @@ spec:
         app: nextjs-app
     spec:
       containers:
-      - name: nextjs-app
-        image: shortcut-jawad/nextjs-app:latest
-        ports:
-        - containerPort: 3000
+        - name: nextjs-app
+          image: YOUR_DOCKERHUB_USERNAME/nextjs-app:latest  # 👈 change this
+          ports:
+            - containerPort: 3000
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+
+            # Database (IMPORTANT: use Kubernetes Service name, NOT docker-compose db)
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres-service:5432/agentic_test_harness"
+
+            - name: DIRECT_URL
+              value: "postgresql://postgres:postgres@postgres-service:5432/agentic_test_harness"
+
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt_secret
+
+            - name: GOOGLE_GEMINI_API
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: gemini_api
+
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: groq_api
+
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: openai_api
+
+          volumeMounts:
+            - name: uploads-volume
+              mountPath: /app/uploads
+
+      volumes:
+        - name: uploads-volume
+          emptyDir: {}
