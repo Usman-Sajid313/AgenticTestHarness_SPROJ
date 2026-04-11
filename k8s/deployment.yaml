@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: YOUR_DOCKERHUB_USERNAME/nextjs-app:latest  # 👈 change this
+          image: shortcut-jawad/nextjs-app:latest  
           ports:
             - containerPort: 3000
 
@@ -26,7 +26,7 @@ spec:
             - name: HOSTNAME
               value: "0.0.0.0"
 
-            # Database (IMPORTANT: use Kubernetes Service name, NOT docker-compose db)
+            # Database 
             - name: DATABASE_URL
               value: "postgresql://postgres:postgres@postgres-service:5432/agentic_test_harness"
 
