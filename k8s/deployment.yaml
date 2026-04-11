@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: shortcut-jawad/nextjs-app:latest  
+          image: shortcutjawad/nextjs-app:latest  
           ports:
             - containerPort: 3000
 
