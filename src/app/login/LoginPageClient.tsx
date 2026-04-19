@@ -57,8 +57,7 @@ export default function LoginPageClient({ redirectTo }: { redirectTo: string }) 
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">Agentic Harness</h1>
               <p className="text-sm leading-relaxed text-zinc-400">
-                A futuristic testbed where AI agents prove their tool-use.
-                Spin up mock APIs, run scenario suites, and get judge-grade reports with full traces.
+                Evaluate real agent runs with structured parsing, multi-model judging, and score-driven comparisons.
               </p>
               <p className="text-sm text-zinc-500">Build confidently. Measure rigorously. Iterate faster.</p>
             </div>

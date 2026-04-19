@@ -10,7 +10,7 @@ A full-stack platform for testing, evaluating, and benchmarking autonomous AI ag
 | Language | TypeScript, React 19 |
 | Database | PostgreSQL via Prisma ORM |
 | Auth | Custom JWT-based auth (jose + bcrypt) |
-| AI / LLM | Google Gemini 2.5 Flash (evaluation), Groq multi-model panel (judging), OpenAI / LangChain (test suite runs) |
+| AI / LLM | Google Gemini 2.5 Flash (evaluation), Groq multi-model panel (judging) |
 | Storage | Local filesystem storage |
 | Run Processing | In-process parser and judger modules |
 | Styling | Tailwind CSS v4 |
@@ -30,10 +30,6 @@ A full-stack platform for testing, evaluating, and benchmarking autonomous AI ag
 4. **Judge Runs** -- A multi-model judging panel (6 free-tier Groq models) evaluates agent performance with median-based adjudication, confidence scoring, and per-dimension scorecards.
 5. **Evaluate Runs** -- Gemini-powered evaluation scores runs across 7 dimensions on a 0-100 scale.
 6. **Compare Runs** -- Select 2-4 runs for side-by-side comparison with delta indicators and dimension breakdowns.
-
-### Interactive Test Harness
-
-An in-browser test harness for running test suites with mock tools against OpenAI-compatible models. Includes a default "Tokyo Weekend Planner" scenario with 6 mock travel API endpoints (flights, hotels, weather, events, dining, budget).
 
 ### Custom Evaluation Rubrics
 
@@ -65,11 +61,8 @@ src/
       rubrics/         # Evaluation rubric CRUD
       ingestions/      # Ingestion tracking
       tools/           # Tool management
-      mock/            # 6 mock travel API endpoints (public)
       me/              # Current user info
-      test-suite/      # Test suite execution (streaming), key rotation
     compare/           # Run comparison page
-    delete-test-suite/ # Test suite deletion page
     limit-model-budget/# Budget configuration page
     login/             # Login page
     signup/            # Signup page
@@ -77,7 +70,6 @@ src/
     projects/[id]/     # Project detail page
     rubrics/           # Rubric list and creation pages
     runs/[id]/         # Individual run view page
-    test-harness/      # Interactive test harness page
     components/
       projects/        # Project list, modals, run table, score chart
       runs/            # Run view, comparison view, dimension diff
@@ -93,14 +85,8 @@ src/
     parser.ts          # In-process run parser
     judger.ts          # In-process multi-model judger
     evaluator.ts       # Gemini-based evaluation logic
-    budgetValidator.ts # BudgetTracker class (token/cost tracking)
     runBudgetValidator.ts # Pre-call budget validation
-    mockToolCatalog.ts # Mock tool definitions and default test suite
-    testSuiteStore.ts  # In-memory test suite state
-    openaiKeys.ts      # Multi-key API key rotation
-    openaiModels.ts    # Multi-model configuration
     toolSchemas.ts     # Zod schemas for tools
-    suiteSchemas.ts    # Zod schema for test suites
     pdf-generator.ts   # PDF report generation
     events.ts          # Event name constants
   middleware.ts        # JWT auth middleware
@@ -162,17 +148,6 @@ JWT_EXPIRES_DAYS=14
 
 # Google Gemini (required for evaluation)
 GOOGLE_GEMINI_API=your-gemini-api-key
-
-# OpenAI-compatible models (required for test harness)
-OPENAI_API_KEY=your-api-key
-OPENAI_BASE_URL=https://your-endpoint.example.com/v1
-OPENAI_MODEL=gpt-4.1-mini
-
-# Additional models and keys (optional, for rotation)
-OPENAI_MODEL_1=gpt-4.1
-OPENAI_MODEL_2=gpt-4.1-mini
-OPENAI_API_KEY_1=another-api-key
-OPENAI_API_KEY_2=third-api-key
 
 # Budget limits (optional)
 MAX_JUDGE_BUDGET=2.0
@@ -251,14 +226,10 @@ Three GitHub Actions workflows:
 | `/api/runs/[id]/evaluate` | POST | Trigger Gemini evaluation |
 | `/api/runs/compare` | GET | Compare multiple runs |
 | `/api/suites` | GET | List test suites |
-| `/api/test-suite` | GET, POST, PUT, DELETE | Test suite CRUD |
-| `/api/test-suite/run` | POST | Execute test suite (streaming) |
-| `/api/test-suite/rotate-key` | POST | Rotate OpenAI API key |
 | `/api/rubrics` | GET, POST | List and create rubrics |
 | `/api/rubrics/[id]` | GET, PUT, DELETE | Rubric CRUD |
 | `/api/ingestions` | GET | List ingestions |
 | `/api/tools/[id]` | GET | Get tool details |
-| `/api/mock/*` | GET | 6 mock travel API endpoints (public) |
 
 ## Scripts
 
@@ -273,7 +244,5 @@ Prisma client generation runs automatically via `predev`, `prebuild`, `prestart`
 
 ## Documentation
 
-- [Budget Architecture](docs/BUDGET_ARCHITECTURE.md) -- Architecture diagrams for the budget validation system
 - [Budget Limits](docs/BUDGET_LIMITS.md) -- Feature documentation for budget limiting
-- [Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md) -- Budget limits implementation details
 - [Feature Summary](FEATURE_IMPLEMENTATION_SUMMARY.md) -- Run comparison and custom rubrics implementation details

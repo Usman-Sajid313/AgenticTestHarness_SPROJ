@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
-import type { Prisma } from "@prisma/client";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -90,7 +89,7 @@ export async function PATCH(req: Request) {
       );
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.workspaceModelConfig.upsert({
         where: { workspaceId },
         update: {
@@ -119,7 +118,7 @@ export async function PATCH(req: Request) {
             judgePrimaryModel: parsed.judgePrimaryModel,
             judgeVerifierModel: parsed.judgeVerifierModel,
             judgePanelModels,
-          } as Prisma.InputJsonValue,
+          } as never,
         },
       });
     });

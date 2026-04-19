@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { previewParseLog } from "@/lib/parser";
 
-const showcaseDir = "/home/shaheer/sproj/AgenticTestHarness_SPROJ/tests/fixtures/showcase";
+const showcaseDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/showcase"
+);
 
 function readFixture(name: string) {
   return readFileSync(`${showcaseDir}/${name}`, "utf8");

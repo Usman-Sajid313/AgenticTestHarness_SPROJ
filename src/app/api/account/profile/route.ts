@@ -3,7 +3,6 @@ import { getSessionUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z, ZodError } from 'zod';
 import bcrypt from 'bcryptjs';
-import type { Prisma } from '@prisma/client';
 
 const PasswordSchema = z
   .string()
@@ -65,7 +64,7 @@ export async function PATCH(req: Request) {
     }
 
     const data: { name?: string; passwordHash?: string } = {};
-    const logs: Array<{ action: string; metadata?: Prisma.InputJsonValue }> = [];
+    const logs: Array<{ action: string; metadata?: unknown }> = [];
 
     if (typeof name === 'string' && name.length > 0 && name !== existing.name) {
       data.name = name;
@@ -93,7 +92,7 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: typeof prisma) => {
       const saved = await tx.user.update({
         where: { id: existing.id },
         data,

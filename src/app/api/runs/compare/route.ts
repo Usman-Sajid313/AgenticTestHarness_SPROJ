@@ -4,6 +4,50 @@ import { getScopedUser } from "@/lib/auth";
 import { resolveMetricBreakdown } from "@/lib/evaluationSummary";
 import { buildRunUsageSummary } from "@/lib/runUsage";
 
+type ComparisonRunRecord = {
+  id: string;
+  projectId: string;
+  status: string;
+  createdAt: Date;
+  completedAt: Date | null;
+  project: {
+    name: string;
+    workspaceId: string;
+    workspace: {
+      modelConfig: {
+        judgePanelModels: string[];
+        judgeVerifierModel: string | null;
+      } | null;
+    };
+  };
+  evaluations: Array<{
+    id: string;
+    status: string;
+    totalScore: number | null;
+    confidence: number | null;
+    summary: string | null;
+    metricBreakdown?: unknown;
+    finalScorecard?: unknown;
+    geminiJudgement?: unknown;
+  }>;
+  metrics: {
+    totalSteps: number;
+    totalToolCalls: number;
+    totalErrors: number;
+    totalRetries: number;
+    totalDurationMs: number | null;
+  } | null;
+  judgePacket: {
+    packetSizeBytes: number;
+  } | null;
+  traceSummary: unknown;
+  ruleFlags: Array<{
+    flagType: string;
+    severity: string;
+    message: string;
+  }>;
+};
+
 export async function GET(req: Request) {
   const user = await getScopedUser("read");
   if (!user) {
@@ -92,7 +136,7 @@ export async function GET(req: Request) {
     }
 
     // Check all runs belong to user's workspace
-    const invalidRuns = runs.filter(
+    const invalidRuns = (runs as ComparisonRunRecord[]).filter(
       (run) => run.project?.workspaceId !== membership.workspaceId
     );
     if (invalidRuns.length > 0) {
@@ -114,7 +158,7 @@ export async function GET(req: Request) {
     }
 
     // Extract and structure comparison data (derive metricBreakdown from finalScorecard when missing)
-    const comparison = runs.map((run) => {
+    const comparison = (runs as ComparisonRunRecord[]).map((run) => {
       const evaluation = run.evaluations[0] || null;
       const metricBreakdown = resolveMetricBreakdown(evaluation);
       const usageSummary = buildRunUsageSummary({
@@ -150,7 +194,7 @@ export async function GET(req: Request) {
             }
           : null,
         usageSummary,
-        ruleFlags: run.ruleFlags.map((flag) => ({
+        ruleFlags: run.ruleFlags.map((flag: ComparisonRunRecord["ruleFlags"][number]) => ({
           flagType: flag.flagType,
           severity: flag.severity,
           message: flag.message,

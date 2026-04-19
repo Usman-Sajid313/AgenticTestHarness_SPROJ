@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getScopedUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
@@ -71,7 +70,7 @@ export async function POST(req: Request) {
       sourceType,
       formatHint: formatHint ?? null,
       mappingConfig:
-        (mappingConfig as Prisma.InputJsonValue | undefined) || undefined,
+        (mappingConfig ?? undefined) as unknown as never,
       fileRef: body.fileRef || logfile.storageKey,
       status: "CREATED",
     },
@@ -85,9 +84,9 @@ export async function POST(req: Request) {
         sourceType,
         formatHint: formatHint ?? null,
         mappingConfig:
-          (mappingConfig as Prisma.InputJsonValue | null) || null,
+          (mappingConfig ?? null) as unknown as never,
         ingestionId: ingestion.id,
-      } as Prisma.InputJsonValue,
+      } as never,
     },
   });
 

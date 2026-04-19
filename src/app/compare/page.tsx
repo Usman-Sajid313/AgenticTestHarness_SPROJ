@@ -159,10 +159,10 @@ function ComparePageContent() {
               </Link>
             ) : (
               <Link
-                href="/projects"
+                href="/"
                 className="text-sm text-zinc-400 hover:text-zinc-200 mb-2 inline-block"
               >
-                ← Back to Projects
+                ← Back to Dashboard
               </Link>
             )}
             <h1 className="text-3xl font-semibold text-white">

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { uploadFile, getPublicUrl } from "@/lib/storage";
 import { getScopedUser } from "@/lib/auth";
@@ -22,10 +21,10 @@ export async function POST(req: Request) {
       ? formatHintRaw.trim()
       : null;
 
-  let mappingConfig: Prisma.InputJsonValue | null = null;
+  let mappingConfig: unknown = null;
   if (typeof mappingConfigRaw === "string" && mappingConfigRaw.trim()) {
     try {
-      mappingConfig = JSON.parse(mappingConfigRaw) as Prisma.InputJsonValue;
+      mappingConfig = JSON.parse(mappingConfigRaw) as unknown;
     } catch {
       return NextResponse.json(
         { error: "Invalid mappingConfig JSON" },
@@ -100,7 +99,7 @@ export async function POST(req: Request) {
               sourceType,
               formatHint,
               mappingConfig,
-            } as Prisma.InputJsonValue)
+            } as never)
           : undefined,
     },
   });

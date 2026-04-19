@@ -16,6 +16,15 @@ const ACTION_LABELS: Record<string, string> = {
   API_TOKEN_REVOKED: "Revoked API token",
 };
 
+type ActivityLogRow = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  metadata: unknown;
+  createdAt: Date;
+};
+
 export async function GET(req: Request) {
   try {
     const user = await getScopedUser("read");
@@ -33,7 +42,7 @@ export async function GET(req: Request) {
       take: limit,
     });
 
-    const activities = logs.map((log) => ({
+    const activities = (logs as ActivityLogRow[]).map((log) => ({
       id: log.id,
       action: log.action,
       label: ACTION_LABELS[log.action] ?? log.action,

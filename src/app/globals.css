@@ -8,6 +8,14 @@ body {
   height: 100%;
   margin: 0;
   background: #09090b;
+  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 /* Scrollbar styling */

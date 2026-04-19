@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RunView, { type Evaluation as RunViewEvaluation } from "@/app/components/runs/RunView";
 import type { Evaluation } from "@/types/evaluation";
@@ -86,7 +87,12 @@ export default async function RunPage(context: {
   if (!run) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
-        <p>Run not found.</p>
+        <div className="text-center">
+          <Link href="/" className="mb-4 inline-flex text-sm text-zinc-400 transition hover:text-zinc-200">
+            ← Back to Dashboard
+          </Link>
+          <p>Run not found.</p>
+        </div>
       </main>
     );
   }
@@ -185,6 +191,13 @@ export default async function RunPage(context: {
   return (
     <main className="min-h-screen w-full bg-zinc-950">
       <div className="mx-auto max-w-5xl px-6 py-16">
+        <Link
+          href={run.project?.id ? `/projects/${run.project.id}` : "/"}
+          className="mb-6 inline-flex text-sm text-zinc-400 transition hover:text-zinc-200"
+        >
+          {run.project?.id ? "← Back to Project" : "← Back to Dashboard"}
+        </Link>
+
         <RunView
           initialRun={{
             ...run,

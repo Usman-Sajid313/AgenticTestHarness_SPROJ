@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       );
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.auditLog.create({
         data: {
           userId: user.id, 

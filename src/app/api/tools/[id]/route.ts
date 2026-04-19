@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import type { Prisma } from '@prisma/client';
 import { getScopedUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import {
@@ -21,8 +20,8 @@ async function getWorkspaceIdForUser(userId: string) {
   return membership?.workspaceId ?? null;
 }
 
-function toPrismaJson(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+function toPrismaJson(value: unknown) {
+  return JSON.parse(JSON.stringify(value)) as never;
 }
 
 export async function GET(_: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -132,7 +131,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
   const outputSchema = toPrismaJson(buildOutputJsonSchema(payload.output));
 
   try {
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: typeof prisma) => {
       const updatedTool = await tx.tool.update({
         where: { id },
         data: {
@@ -216,7 +215,7 @@ export async function DELETE(_: NextRequest, context: { params: Promise<{ id: st
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.tool.delete({ where: { id } });
       await tx.auditLog.create({
         data: {

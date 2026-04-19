@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { encode } from 'gpt-tokenizer';
 
@@ -100,6 +101,10 @@ export default function LimitModelBudgetPage() {
   return (
     <main className="min-h-screen w-full bg-zinc-950">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">
+        <Link href="/" className="inline-flex text-sm text-zinc-400 transition hover:text-zinc-200">
+          ← Back to Dashboard
+        </Link>
+
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold text-zinc-100">Limit Model Budget</h1>
           <p className="max-w-3xl text-sm text-zinc-400">

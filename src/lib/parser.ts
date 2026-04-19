@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { downloadFile } from "@/lib/storage";
-import type { Prisma } from "@prisma/client";
 
 const PARSER_VERSION = "1.2.1";
 const MAX_PACKET_SIZE_BYTES = 500000;
@@ -324,7 +323,7 @@ export async function parseRun(params: {
           id: crypto.randomUUID(),
           runId,
           eventType: event.type,
-          eventData: event.data as Prisma.InputJsonValue,
+          eventData: event.data as never,
           timestamp: event.timestamp ? new Date(event.timestamp) : null,
           sequence: event.sequence,
           createdAt: new Date(),
@@ -352,14 +351,14 @@ export async function parseRun(params: {
         runId,
         normalizedTrace: JSON.stringify(redactedEvents),
         parserVersion: PARSER_VERSION,
-        parseReport: parseReportData as unknown as Prisma.InputJsonValue,
+        parseReport: parseReportData as never,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       update: {
         normalizedTrace: JSON.stringify(redactedEvents),
         parserVersion: PARSER_VERSION,
-        parseReport: parseReportData as unknown as Prisma.InputJsonValue,
+        parseReport: parseReportData as never,
         updatedAt: new Date(),
       },
     });
@@ -436,8 +435,8 @@ export async function parseRun(params: {
             status: "COMPLETED",
             parserVersion: PARSER_VERSION,
             parserConfidence: adapterResult.strictReport.confidence,
-            strictReport: adapterResult.strictReport as unknown as Prisma.InputJsonValue,
-            sourceMeta: adapterResult.sourceMeta as Prisma.InputJsonValue,
+            strictReport: adapterResult.strictReport as never,
+            sourceMeta: adapterResult.sourceMeta as never,
             completedAt: new Date(),
             updatedAt: new Date(),
           },

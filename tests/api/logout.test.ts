@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { apiPost, signupAndGetCookie, getAuthCookieFromResponse, uniqueName } from '../helpers/api';
+import { apiPost, signupAndGetCookie, uniqueName } from '../helpers/api';
 
 function uniqueEmail() {
   return `logout-${Date.now()}-${Math.random().toString(36).slice(2, 9)}@example.com`;

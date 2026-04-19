@@ -75,7 +75,7 @@ export async function resolveWorkspaceModelConfig(
   }
 
   const judgePanelModels = savedConfig.judgePanelModels.filter(
-    (modelId) => modelId.trim().length > 0
+    (modelId: string) => modelId.trim().length > 0
   );
 
   return {

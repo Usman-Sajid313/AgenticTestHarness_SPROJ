@@ -50,7 +50,7 @@ export async function DELETE(req: Request) {
     }
 
     // Delete suite + record audit log transactionally
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.testSuite.delete({ where: { id: suite.id } });
       await tx.auditLog.create({
         data: {

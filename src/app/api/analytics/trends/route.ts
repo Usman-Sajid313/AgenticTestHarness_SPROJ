@@ -3,6 +3,13 @@ import { getScopedUser } from "@/lib/auth";
 import { getWorkspaceIdForUser } from "@/lib/modelConfig";
 import { prisma } from "@/lib/prisma";
 
+type ProjectIdRow = { id: string };
+type TrendRunRow = {
+  id: string;
+  status: string;
+  createdAt: Date;
+};
+
 export async function GET(req: Request) {
   try {
     const user = await getScopedUser("read");
@@ -30,7 +37,7 @@ export async function GET(req: Request) {
       where: { workspaceId, isArchived: false },
       select: { id: true },
     });
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = (projects as ProjectIdRow[]).map((p) => p.id);
 
     // Fetch runs created after cutoff
     const runs = await prisma.agentRun.findMany({
@@ -42,7 +49,7 @@ export async function GET(req: Request) {
     });
 
     // Fetch completed evaluations after cutoff for workspace runs
-    const runIds = runs.map((r) => r.id);
+    const runIds = (runs as TrendRunRow[]).map((r) => r.id);
     const evaluations = await prisma.runEvaluation.findMany({
       where: {
         runId: { in: runIds },
@@ -59,7 +66,7 @@ export async function GET(req: Request) {
       { completed: number; failed: number; total: number }
     > = {};
 
-    for (const run of runs) {
+    for (const run of runs as TrendRunRow[]) {
       const date = run.createdAt.toISOString().slice(0, 10);
       if (!runsByDate[date]) {
         runsByDate[date] = { completed: 0, failed: 0, total: 0 };
@@ -108,7 +115,7 @@ export async function GET(req: Request) {
       let avgScore: number | null = null;
       if (dayScores && dayScores.length > 0) {
         avgScore =
-          dayScores.reduce((sum, s) => sum + s, 0) / dayScores.length;
+          dayScores.reduce((sum: number, s: number) => sum + s, 0) / dayScores.length;
       }
 
       trends.push({

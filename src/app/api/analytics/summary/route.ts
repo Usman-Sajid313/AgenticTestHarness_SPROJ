@@ -3,6 +3,8 @@ import { getScopedUser } from "@/lib/auth";
 import { getWorkspaceIdForUser } from "@/lib/modelConfig";
 import { prisma } from "@/lib/prisma";
 
+type ProjectIdRow = { id: string };
+
 export async function GET() {
   try {
     const user = await getScopedUser("read");
@@ -21,7 +23,7 @@ export async function GET() {
       where: { workspaceId, isArchived: false },
       select: { id: true },
     });
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = (projects as ProjectIdRow[]).map((p) => p.id);
 
     const totalProjects = projectIds.length;
 

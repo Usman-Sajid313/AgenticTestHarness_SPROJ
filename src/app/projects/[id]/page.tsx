@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import ProjectRunsTable from "@/app/components/projects/ProjectRunsTable";
 import StartRunButton from "@/app/components/projects/StartRunButton";
@@ -8,6 +9,29 @@ import { buildRunUsageSummary } from "@/lib/runUsage";
 import { buildRegressionContext, resolveRegressionConfig } from "@/lib/regression";
 
 const PAGE_SIZE = 10;
+
+type ProjectRunRecord = {
+  id: string;
+  createdAt: Date;
+  completedAt: Date | null;
+  status: string;
+  evaluations: Array<{
+    id: string;
+    status: string;
+    totalScore: number | null;
+    geminiJudgement?: unknown;
+  }>;
+  metrics: {
+    totalSteps: number;
+    totalToolCalls: number;
+    totalErrors: number;
+    totalRetries: number;
+    totalDurationMs: number | null;
+  } | null;
+  judgePacket: {
+    packetSizeBytes: number;
+  } | null;
+};
 
 export default async function ProjectPage(context: {
   params: Promise<{ id: string }>;
@@ -58,6 +82,9 @@ export default async function ProjectPage(context: {
   if (!project) {
     return (
       <div className="px-6 py-12 text-center text-white">
+        <Link href="/" className="mb-4 inline-flex text-sm text-zinc-400 transition hover:text-zinc-200">
+          ← Back to Dashboard
+        </Link>
         <h2 className="text-2xl font-semibold">Project not found</h2>
       </div>
     );
@@ -107,7 +134,7 @@ export default async function ProjectPage(context: {
       })
     : null;
 
-  const runsWithRegression = runs.map((run) => {
+  const runsWithRegression = (runs as ProjectRunRecord[]).map((run) => {
     const usageSummary = buildRunUsageSummary({
       judgePacket: run.judgePacket,
       evaluation: run.evaluations[0] ?? null,
@@ -144,6 +171,10 @@ export default async function ProjectPage(context: {
   return (
     <main className="min-h-screen w-full bg-zinc-950">
       <div className="mx-auto max-w-6xl px-6 py-16">
+        <Link href="/" className="mb-6 inline-flex text-sm text-zinc-400 transition hover:text-zinc-200">
+          ← Back to Dashboard
+        </Link>
+
         <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-4xl font-bold text-white">{project.name}</h1>

@@ -38,7 +38,6 @@ type MeResponse = {
 
 const navLinks = [
   { href: '/', label: 'Dashboard' },
-  { href: '/test-harness', label: 'Test Harness' },
   { href: '/rubrics', label: 'Rubrics' },
   { href: '/limit-model-budget', label: 'Budget' },
 ];

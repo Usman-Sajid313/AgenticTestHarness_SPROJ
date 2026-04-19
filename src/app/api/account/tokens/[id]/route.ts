@@ -53,7 +53,7 @@ export async function DELETE(
     }
 
     // Revoke the token and create audit log in a transaction
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: typeof prisma) => {
       await tx.apiToken.update({
         where: { id },
         data: { revokedAt: new Date() },

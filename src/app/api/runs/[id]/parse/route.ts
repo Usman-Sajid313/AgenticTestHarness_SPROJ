@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getScopedUser } from "@/lib/auth";
 import { validateParseBudget } from "@/lib/runBudgetValidator";
@@ -88,7 +87,7 @@ export async function POST(
       sourceType: effectiveSourceType,
       formatHint: effectiveFormatHint,
       mappingConfig:
-        (effectiveMappingConfig as Prisma.InputJsonValue | undefined) || undefined,
+        (effectiveMappingConfig as never | undefined) || undefined,
       fileRef: logfile.storageKey,
       status: "CREATED",
     },

@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     const hashedToken = hashApiToken(plaintext);
 
     // Create token + audit log in a transaction
-    const apiToken = await prisma.$transaction(async (tx) => {
+    const apiToken = await prisma.$transaction(async (tx: typeof prisma) => {
       const created = await tx.apiToken.create({
         data: {
           userId: user.id,

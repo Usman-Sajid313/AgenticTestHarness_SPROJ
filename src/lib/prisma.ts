@@ -1,6 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 
-const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+const { PrismaClient } = require('@prisma/client') as {
+  PrismaClient: new (options?: { log?: string[] }) => any;
+};
+
+const globalForPrisma = global as unknown as { prisma?: any };
 
 export const prisma =
   globalForPrisma.prisma ??
